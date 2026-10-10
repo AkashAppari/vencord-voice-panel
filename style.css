@@ -1,25 +1,54 @@
+/*
+ * VoiceChannelPanel
+ *
+ * Colours and geometry here are deliberately literal instead of Discord theme variables: this panel
+ * lives outside the themed wrapper, where those variables are not defined, and a var() with no
+ * fallback leaves the text on the browser default (black) - invisible on a dark background. Explicit
+ * values keep it readable whatever the client's theme does.
+ */
+
 .vc-voiceChannelPanel-panel {
-    position: fixed;
     display: flex;
     flex-direction: column;
     gap: 4px;
     padding: 6px;
     font-size: 12px;
-    color: var(--text-normal);
-    background: var(--background-floating);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm, 8px);
-    box-shadow: var(--shadow-high);
+    color: #ffffff;
+    background: #1e1f22;
+    border: 1px solid #3f4147;
+    border-radius: 8px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+}
+
+/*
+ * Docked above the music card: the mount is `display: contents`, so this card becomes a child of
+ * Discord's sidebar column and that column lays it out. Matching the Spotify card's own geometry
+ * (flush margins, 10px top corners, a bottom hairline) makes the two read as one stack.
+ */
+.vc-voiceChannelPanel-docked {
+    position: static;
+    width: auto;
+    flex: 0 0 auto;
+    margin: 0;
+    border: none;
+    border-bottom: 1px solid #3f4147;
+    border-radius: 10px 10px 0 0;
+    box-shadow: none;
 }
 
 .vc-voiceChannelPanel-header {
     display: flex;
     justify-content: space-between;
     padding: 2px 4px;
-    color: var(--text-muted);
+    color: #b5bac1;
     font-weight: 600;
     cursor: grab;
     user-select: none;
+}
+
+/* A docked panel is placed by the sidebar, so there is nothing to drag. */
+.vc-voiceChannelPanel-docked .vc-voiceChannelPanel-header {
+    cursor: default;
 }
 
 .vc-voiceChannelPanel-title {
@@ -30,7 +59,7 @@
 
 .vc-voiceChannelPanel-count {
     flex: 0 0 auto;
-    color: var(--text-muted);
+    color: #b5bac1;
 }
 
 .vc-voiceChannelPanel-members {
@@ -49,20 +78,20 @@
 }
 
 .vc-voiceChannelPanel-row:hover {
-    background: var(--background-modifier-hover);
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .vc-voiceChannelPanel-me {
     font-weight: 600;
 }
 
-/* While talking: the same green ring Discord's own voice UI puts around the avatar. */
+/* While talking: the green ring Discord's own voice UI puts around the avatar. */
 .vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-avatar {
-    box-shadow: 0 0 0 2px var(--status-online, #23a55a);
+    box-shadow: 0 0 0 2px #23a55a;
 }
 
 .vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-name {
-    color: var(--text-normal);
+    color: #ffffff;
     font-weight: 600;
 }
 
@@ -72,7 +101,7 @@
 }
 
 .vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-name {
-    color: var(--text-muted);
+    color: #b5bac1;
 }
 
 .vc-voiceChannelPanel-avatar {
@@ -80,13 +109,16 @@
     height: 20px;
     border-radius: 50%;
     flex: 0 0 auto;
+    background: #3f4147;
 }
 
 .vc-voiceChannelPanel-name {
     flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: #ffffff;
 }
 
 .vc-voiceChannelPanel-badges {
@@ -94,7 +126,7 @@
     align-items: center;
     gap: 2px;
     flex: 0 0 auto;
-    color: var(--text-muted);
+    color: #b5bac1;
 }
 
 .vc-voiceChannelPanel-badge {
@@ -102,7 +134,8 @@
     line-height: 1;
     padding: 1px 3px;
     border-radius: 3px;
-    background: var(--background-modifier-hover);
+    background: rgba(255, 255, 255, 0.08);
+    color: #dbdee1;
 }
 
 .vc-voiceChannelPanel-log {
@@ -112,14 +145,14 @@
     max-height: 20vh;
     overflow-y: auto;
     padding-top: 4px;
-    border-top: 1px solid var(--border-subtle);
+    border-top: 1px solid #3f4147;
 }
 
 .vc-voiceChannelPanel-log-entry {
     font-size: 11px;
-    color: var(--text-muted);
+    color: #b5bac1;
 }
 
 .vc-voiceChannelPanel-leave {
-    color: var(--text-danger, var(--text-muted));
+    color: #ff8a8a;
 }

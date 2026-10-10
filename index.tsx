@@ -34,6 +34,14 @@ const logger = new Logger("VoiceChannelPanel");
 // which esbuild cannot inline at runtime, so the value is spelled out here rather than imported.
 const PARTICIPANT_TYPE_USER: number = 2;
 
+// Vencord's own SpotifyControls renders its card as `<div id="vc-spotify-player">`, a sibling of
+// Discord's account panel. Docking above it therefore means putting our node immediately before it
+// in that column, so the sidebar lays the two out together instead of us floating over whatever is
+// behind us. An id is far more stable than Discord's hashed class names.
+const DOCK_ANCHOR_ID = "vc-spotify-player";
+const MOUNT_CLASS = "vc-voiceChannelPanel-mount";
+const MOUNT_DOCKED_CLASS = "vc-voiceChannelPanel-mount-docked";
+
 const settings = definePluginSettings({
     offsetLeft: {
         type: OptionType.NUMBER,
@@ -207,7 +215,60 @@ function Panel() {
     );
 
     const [log, setLog] = useState<LogEntry[]>([]);
+    const [docked, setDocked] = useState(false);
     const dragCleanup = useRef<(() => void) | null>(null);
+
+    /**
+     * Docking. The panel is a floating overlay until the music card exists, at which point it moves
+     * into the sidebar column directly above it and stops positioning itself. If that card never
+     * appears (Spotify controls disabled), it stays floating at the saved offsets.
+     */
+    useEffect(() => {
+        let frame = 0;
+
+        const applyDock = () => {
+            const anchor = document.getElementById(DOCK_ANCHOR_ID);
+            const parent = anchor?.parentElement;
+
+            if (!container || !anchor || !parent) {
+                container?.classList.remove(MOUNT_DOCKED_CLASS);
+                setDocked(false);
+                return;
+            }
+
+            if (container.parentElement !== parent || container.nextElementSibling !== anchor)
+                parent.insertBefore(container, anchor);
+
+            container.classList.add(MOUNT_DOCKED_CLASS);
+            setDocked(true);
+        };
+
+        const schedule = () => {
+            if (frame) return;
+
+            frame = requestAnimationFrame(() => {
+                frame = 0;
+                applyDock();
+            });
+        };
+
+        applyDock();
+
+        // Discord re-renders that column often, and React will not preserve a node it does not own.
+        const observer = new MutationObserver(() => {
+            if (!container?.isConnected) schedule();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        window.addEventListener("resize", schedule);
+
+        return () => {
+            observer.disconnect();
+            window.removeEventListener("resize", schedule);
+            if (frame) cancelAnimationFrame(frame);
+            container?.classList.remove(MOUNT_DOCKED_CLASS);
+        };
+    }, []);
 
     useEffect(() => {
         setLog([]);
@@ -249,6 +310,9 @@ function Panel() {
     }, []);
 
     const onHeaderMouseDown = (e: DragStartEvent) => {
+        // A docked panel is laid out by the sidebar column, so there is nothing to drag.
+        if (docked) return;
+
         dragCleanup.current?.();
 
         const startX = e.clientX;
@@ -295,8 +359,8 @@ function Panel() {
 
     return (
         <div
-            className={cl("panel")}
-            style={{
+            className={[cl("panel"), docked && cl("docked")].filter(Boolean).join(" ")}
+            style={docked ? undefined : {
                 position: "fixed",
                 left: `${offsetLeft}px`,
                 bottom: `${offsetBottom}px`,
@@ -357,6 +421,7 @@ export default definePlugin({
 
     start() {
         container = document.createElement("div");
+        container.className = MOUNT_CLASS;
         document.body.appendChild(container);
         root = createRoot(container);
         root.render(<PanelWithErrorBoundary />);

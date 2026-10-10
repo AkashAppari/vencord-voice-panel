@@ -59,6 +59,7 @@ globalThis.document = window.document;
 Object.defineProperty(globalThis, "navigator", { value: window.navigator, configurable: true, writable: true });
 globalThis.HTMLElement = window.HTMLElement;
 globalThis.Node = window.Node;
+globalThis.MutationObserver = window.MutationObserver;
 globalThis.requestAnimationFrame = window.requestAnimationFrame.bind(window);
 globalThis.cancelAnimationFrame = window.cancelAnimationFrame.bind(window);
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -221,6 +222,38 @@ await act(async () => {
 check("drag is clamped inside the viewport",
     settingsModule.store.offsetLeft <= window.innerWidth - 80 && settingsModule.store.offsetBottom >= 0,
     `left=${settingsModule.store.offsetLeft} bottom=${settingsModule.store.offsetBottom} w=${window.innerWidth}`);
+
+// ---- docking: sits directly above the music card, the way Vencord's own Spotify panel does
+const column = document.createElement("div");
+const musicCard = document.createElement("div");
+musicCard.id = "vc-spotify-player";
+column.appendChild(musicCard);
+document.body.appendChild(column);
+
+await act(async () => { plugin.stop(); });
+await act(async () => { plugin.start(); });
+await act(async () => { await new Promise(r => setTimeout(r, 40)); });
+
+const mount = document.querySelector(".vc-voiceChannelPanel-mount");
+check("docks directly above the music card", musicCard.previousElementSibling === mount, String(musicCard.previousElementSibling?.className));
+check("the docked mount is flagged", !!mount?.classList.contains("vc-voiceChannelPanel-mount-docked"), mount?.className);
+check("a docked panel stops positioning itself as an overlay", panelEl()?.style.position === "", panelEl()?.getAttribute("style") ?? "(no style attribute)");
+
+const leftBeforeDockDrag = settingsModule.store.offsetLeft;
+await act(async () => {
+    document.querySelector(".vc-voiceChannelPanel-header").dispatchEvent(new window.MouseEvent("mousedown", { clientX: 100, clientY: 100, bubbles: true }));
+    window.dispatchEvent(new window.MouseEvent("mousemove", { clientX: 300, clientY: 40, bubbles: true }));
+});
+await act(async () => { await new Promise(r => setTimeout(r, 40)); });
+window.dispatchEvent(new window.MouseEvent("mouseup", { bubbles: true }));
+check("dragging a docked panel does not move it", settingsModule.store.offsetLeft === leftBeforeDockDrag, String(settingsModule.store.offsetLeft));
+
+// with the music card gone it goes back to the floating panel at the saved offsets
+await act(async () => { musicCard.remove(); });
+await act(async () => { plugin.stop(); plugin.start(); });
+await act(async () => { await new Promise(r => setTimeout(r, 40)); });
+check("floats again when there is no music card", panelEl()?.style.position === "fixed" && !document.querySelector(".vc-voiceChannelPanel-mount-docked"), panelEl()?.getAttribute("style") ?? "(no style attribute)");
+await act(async () => { column.remove(); });
 
 // ---- disconnecting clears the panel and the log
 common.state.myChannelId = undefined;

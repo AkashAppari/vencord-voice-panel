@@ -1,8 +1,12 @@
 # VoiceChannelPanel
 
-A [Vencord](https://vencord.dev) userplugin that puts a small floating panel above Discord's
-bottom-left user area, showing **who is in the voice channel you are connected to right now** —
-plus a running log of who joined and who left, with the time.
+A [Vencord](https://vencord.dev) userplugin that puts a small panel above Discord's bottom-left user
+area, showing **who is in the voice channel you are connected to right now** — plus a running log of
+who joined and who left, with the time.
+
+Where exactly it sits: if Vencord's Spotify player is on screen the panel docks into the sidebar
+column directly above that music card, laid out by Discord like any other panel. With no music card
+it falls back to a floating panel you can drag anywhere, with the position saved in its settings.
 
 Built for the case where you sit in a call with friends but keep another server open: someone
 quietly drops out and you would otherwise have to switch servers to find out who.
@@ -55,19 +59,29 @@ After any change to the plugin, re-run `pnpm build` and restart Discord.
 | `showJoins` | `true` | Log when someone joins as well as leaves |
 | `showLog` | `true` | Show the log under the member list |
 
-## Moving it
+## Where it sits
 
-Drag the panel by its header. The position is written back to the settings, so it survives a
-restart, and it is clamped to the viewport so you cannot lose it off-screen.
+- **Docked (normal case).** The panel moves into the sidebar column immediately above the music card
+  (`#vc-spotify-player`, which Vencord's SpotifyControls renders above the account panel). It is a
+  real layout sibling there, so the column spaces it and nothing is covered up. Matching that card's
+  geometry — flush margins, 10px top corners, a bottom hairline — makes the two read as one stack.
+- **Floating (no music card).** With Spotify controls disabled the panel falls back to a
+  `position: fixed` overlay at the `offsetLeft`/`offsetBottom` settings, still draggable by its
+  header and clamped to the viewport so you cannot lose it off-screen. Dragging does nothing while
+  docked, because the sidebar owns the placement.
 
-The default `offsetBottom` of 120px clears both Discord's account panel and the voice-status box
-that sits above it while you are connected. If your layout differs (compact mode, a theme), drag it
-where you want it.
+If Discord re-renders that column and drops the panel out of it, a `MutationObserver` puts it back.
 
 ## How it works, and what it does not touch
 
 - **No patches.** The plugin declares no `patches` at all, so it never rewrites Discord's own code.
-  It mounts one `position: fixed` div into the document body and renders React into it.
+  It mounts one div into the document body and renders React into it. Docking is plain DOM work —
+  the mount is moved into Discord's column, and is `display: contents`, so the card itself is the
+  flex item that column positions.
+- **Colours are literal** (`#ffffff` on `#1e1f22`) rather than Discord theme variables. The panel is
+  rendered outside the themed wrapper, where those variables are not defined, and an undefined
+  `var()` with no fallback leaves text at the browser default — black, and invisible on a dark
+  panel. That is exactly what made early builds look like they had no names at all.
 - Member rows and the speaking ring come from `ChannelRTCStore.getParticipants()` — the same
   participant list Discord's own voice UI renders, which is why the names and the ring match it.
   When that list is unavailable it falls back to `VoiceStateStore`, so the panel cannot silently
@@ -84,7 +98,8 @@ where you want it.
 real voice-state events through it — member list, nickname fallback, mute badge, leave/join log
 text and ordering, your own transitions being ignored, dragging and its clamping, the speaking ring
 and quiet state, the RTC participant list being preferred while stream participants are not listed
-as members, and the panel disappearing when you disconnect.
+as members, docking directly above the music card, dragging being inert while docked, falling back
+to the floating panel when the card is gone, and the panel disappearing when you disconnect.
 
 ```bash
 cd test
