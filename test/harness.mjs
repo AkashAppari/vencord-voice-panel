@@ -223,19 +223,25 @@ check("drag is clamped inside the viewport",
     settingsModule.store.offsetLeft <= window.innerWidth - 80 && settingsModule.store.offsetBottom >= 0,
     `left=${settingsModule.store.offsetLeft} bottom=${settingsModule.store.offsetBottom} w=${window.innerWidth}`);
 
-// ---- docking: sits directly above the music card, the way Vencord's own Spotify panel does
-const column = document.createElement("div");
-const musicCard = document.createElement("div");
-musicCard.id = "vc-spotify-player";
-column.appendChild(musicCard);
-document.body.appendChild(column);
-
+// ---- docking: sits in the sidebar column above the account panel / music card
+// The music card only exists while a track is playing (SpotifyControls' Player returns null
+// otherwise), so the panel has to dock when the column appears later, not only at startup.
 await act(async () => { plugin.stop(); });
 await act(async () => { plugin.start(); });
-await act(async () => { await new Promise(r => setTimeout(r, 40)); });
+await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+check("floats while there is nothing to dock above", panelEl()?.style.position === "fixed", panelEl()?.getAttribute("style") ?? "(no style)");
+
+// Discord's bottom-left stack, with the account panel as its last child
+const accountPanel = document.createElement("div");
+accountPanel.className = "panels_accountPanel";
+const column = document.createElement("div");
+column.className = "panels_a4d4d9";
+column.appendChild(accountPanel);
+document.body.appendChild(column);
+await act(async () => { await new Promise(r => setTimeout(r, 60)); });
 
 const mount = document.querySelector(".vc-voiceChannelPanel-mount");
-check("docks directly above the music card", musicCard.previousElementSibling === mount, String(musicCard.previousElementSibling?.className));
+check("docks when the sidebar column appears after startup", accountPanel.previousElementSibling === mount, String(accountPanel.previousElementSibling?.className));
 check("the docked mount is flagged", !!mount?.classList.contains("vc-voiceChannelPanel-mount-docked"), mount?.className);
 check("a docked panel stops positioning itself as an overlay", panelEl()?.style.position === "", panelEl()?.getAttribute("style") ?? "(no style attribute)");
 
@@ -248,12 +254,22 @@ await act(async () => { await new Promise(r => setTimeout(r, 40)); });
 window.dispatchEvent(new window.MouseEvent("mouseup", { bubbles: true }));
 check("dragging a docked panel does not move it", settingsModule.store.offsetLeft === leftBeforeDockDrag, String(settingsModule.store.offsetLeft));
 
-// with the music card gone it goes back to the floating panel at the saved offsets
+// a track starts: the card appears and the panel moves above it
+const musicCard = document.createElement("div");
+musicCard.id = "vc-spotify-player";
+column.insertBefore(musicCard, accountPanel);
+await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+check("moves above the music card once one exists", musicCard.previousElementSibling === mount, String(musicCard.previousElementSibling?.className));
+
+// the track stops: the card goes, the panel stays docked instead of jumping back out
 await act(async () => { musicCard.remove(); });
-await act(async () => { plugin.stop(); plugin.start(); });
-await act(async () => { await new Promise(r => setTimeout(r, 40)); });
-check("floats again when there is no music card", panelEl()?.style.position === "fixed" && !document.querySelector(".vc-voiceChannelPanel-mount-docked"), panelEl()?.getAttribute("style") ?? "(no style attribute)");
+await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+check("stays docked when the music card goes away", mount?.parentElement === column && !!mount?.classList.contains("vc-voiceChannelPanel-mount-docked"), String(mount?.parentElement?.className));
+
+// the whole column is torn down: back to the floating panel at the saved offsets
 await act(async () => { column.remove(); });
+await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+check("floats again when the dock column is gone", panelEl()?.style.position === "fixed" && document.body.contains(mount), panelEl()?.getAttribute("style") ?? "(no style attribute)");
 
 // ---- disconnecting clears the panel and the log
 common.state.myChannelId = undefined;

@@ -1,10 +1,11 @@
 /*
  * VoiceChannelPanel
  *
- * Colours and geometry here are deliberately literal instead of Discord theme variables: this panel
- * lives outside the themed wrapper, where those variables are not defined, and a var() with no
- * fallback leaves the text on the browser default (black) - invisible on a dark background. Explicit
- * values keep it readable whatever the client's theme does.
+ * Colours come from Discord's own variables so a docked panel matches the client's theme - docked,
+ * the panel sits inside the themed tree where those variables exist. Each one carries a literal
+ * fallback, because the floating panel lives outside that tree and a var() that resolves to nothing
+ * leaves the text on the browser default (black) - invisible on a dark background. The fallbacks are
+ * the values Discord itself ships, so the panel reads the same either way.
  */
 
 .vc-voiceChannelPanel-panel {
@@ -13,25 +14,26 @@
     gap: 4px;
     padding: 6px;
     font-size: 12px;
-    color: #ffffff;
-    background: #1e1f22;
-    border: 1px solid #3f4147;
-    border-radius: 8px;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+    color: var(--text-normal, #ffffff);
+    background: var(--background-base-low, #1e1f22);
+    border: 1px solid var(--border-subtle, #3f4147);
+    border-radius: var(--radius-sm, 8px);
+    box-shadow: var(--shadow-high, 0 8px 16px rgba(0, 0, 0, 0.4));
 }
 
 /*
- * Docked above the music card: the mount is `display: contents`, so this card becomes a child of
- * Discord's sidebar column and that column lays it out. Matching the Spotify card's own geometry
- * (flush margins, 10px top corners, a bottom hairline) makes the two read as one stack.
+ * Docked: the mount is `display: contents`, so this card becomes a child of Discord's sidebar column
+ * and that column lays it out. Matching the music card's own geometry (flush margins, 10px top
+ * corners, a bottom hairline) makes the two read as one stack.
  */
 .vc-voiceChannelPanel-docked {
     position: static;
     width: auto;
     flex: 0 0 auto;
     margin: 0;
+    padding: 8px 12px;
     border: none;
-    border-bottom: 1px solid #3f4147;
+    border-bottom: 1px solid var(--border-subtle, #3f4147);
     border-radius: 10px 10px 0 0;
     box-shadow: none;
 }
@@ -40,7 +42,7 @@
     display: flex;
     justify-content: space-between;
     padding: 2px 4px;
-    color: #b5bac1;
+    color: var(--text-muted, #b5bac1);
     font-weight: 600;
     cursor: grab;
     user-select: none;
@@ -59,7 +61,7 @@
 
 .vc-voiceChannelPanel-count {
     flex: 0 0 auto;
-    color: #b5bac1;
+    color: var(--text-muted, #b5bac1);
 }
 
 .vc-voiceChannelPanel-members {
@@ -67,6 +69,11 @@
     flex-direction: column;
     max-height: 45vh;
     overflow-y: auto;
+}
+
+/* The sidebar column is fixed height, so cap the list harder while docked. */
+.vc-voiceChannelPanel-docked .vc-voiceChannelPanel-members {
+    max-height: 30vh;
 }
 
 .vc-voiceChannelPanel-row {
@@ -78,7 +85,7 @@
 }
 
 .vc-voiceChannelPanel-row:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
 }
 
 .vc-voiceChannelPanel-me {
@@ -87,11 +94,11 @@
 
 /* While talking: the green ring Discord's own voice UI puts around the avatar. */
 .vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-avatar {
-    box-shadow: 0 0 0 2px #23a55a;
+    box-shadow: 0 0 0 2px var(--status-online, #23a55a);
 }
 
 .vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-name {
-    color: #ffffff;
+    color: var(--text-strong, #ffffff);
     font-weight: 600;
 }
 
@@ -101,7 +108,7 @@
 }
 
 .vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-name {
-    color: #b5bac1;
+    color: var(--text-muted, #b5bac1);
 }
 
 .vc-voiceChannelPanel-avatar {
@@ -109,7 +116,7 @@
     height: 20px;
     border-radius: 50%;
     flex: 0 0 auto;
-    background: #3f4147;
+    background: var(--background-modifier-accent, #3f4147);
 }
 
 .vc-voiceChannelPanel-name {
@@ -118,7 +125,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: #ffffff;
+    color: var(--text-normal, #ffffff);
 }
 
 .vc-voiceChannelPanel-badges {
@@ -126,7 +133,7 @@
     align-items: center;
     gap: 2px;
     flex: 0 0 auto;
-    color: #b5bac1;
+    color: var(--text-muted, #b5bac1);
 }
 
 .vc-voiceChannelPanel-badge {
@@ -134,8 +141,8 @@
     line-height: 1;
     padding: 1px 3px;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.08);
-    color: #dbdee1;
+    background: var(--background-modifier-accent, rgba(255, 255, 255, 0.08));
+    color: var(--text-default, #dbdee1);
 }
 
 .vc-voiceChannelPanel-log {
@@ -145,14 +152,14 @@
     max-height: 20vh;
     overflow-y: auto;
     padding-top: 4px;
-    border-top: 1px solid #3f4147;
+    border-top: 1px solid var(--border-subtle, #3f4147);
 }
 
 .vc-voiceChannelPanel-log-entry {
     font-size: 11px;
-    color: #b5bac1;
+    color: var(--text-muted, #b5bac1);
 }
 
 .vc-voiceChannelPanel-leave {
-    color: #ff8a8a;
+    color: var(--text-danger, #ff8a8a);
 }

@@ -42,6 +42,30 @@ const DOCK_ANCHOR_ID = "vc-spotify-player";
 const MOUNT_CLASS = "vc-voiceChannelPanel-mount";
 const MOUNT_DOCKED_CLASS = "vc-voiceChannelPanel-mount-docked";
 
+/**
+ * Where to dock, in order of preference:
+ *
+ * 1. The music card, so the panel sits directly above it while a track is playing.
+ * 2. Otherwise Discord's own bottom-left stack, inserted above the account panel (its last child).
+ *    That is the `[class*="panels"]` element Vencord's own gameActivityToggle and callTimer target.
+ *    It matters because SpotifyControls' Player returns null unless a track is playing, so relying
+ *    on the card alone would only ever dock the panel while music happened to be on.
+ *
+ * Returns null when neither exists, in which case the panel stays a floating overlay.
+ */
+function findDockTarget(): { anchor: HTMLElement; column: HTMLElement; } | null {
+    const musicCard = document.getElementById(DOCK_ANCHOR_ID);
+    if (musicCard?.parentElement) return { anchor: musicCard, column: musicCard.parentElement };
+
+    for (const column of document.querySelectorAll<HTMLElement>('[class^="panels_"], [class*=" panels_"]')) {
+        const accountPanel = column.lastElementChild;
+        if (accountPanel instanceof HTMLElement && accountPanel !== container)
+            return { anchor: accountPanel, column };
+    }
+
+    return null;
+}
+
 const settings = definePluginSettings({
     offsetLeft: {
         type: OptionType.NUMBER,
@@ -216,31 +240,44 @@ function Panel() {
 
     const [log, setLog] = useState<LogEntry[]>([]);
     const [docked, setDocked] = useState(false);
+    const dockColumn = useRef<HTMLElement | null>(null);
     const dragCleanup = useRef<(() => void) | null>(null);
 
     /**
-     * Docking. The panel is a floating overlay until the music card exists, at which point it moves
-     * into the sidebar column directly above it and stops positioning itself. If that card never
-     * appears (Spotify controls disabled), it stays floating at the saved offsets.
+     * Docking. The panel floats until there is something in Discord's bottom-left stack to sit
+     * above - the music card while a track is playing, otherwise the account panel - at which point
+     * it moves into that column and stops positioning itself. With neither, it stays floating at
+     * the offsets in its settings.
      */
     useEffect(() => {
         let frame = 0;
 
         const applyDock = () => {
-            const anchor = document.getElementById(DOCK_ANCHOR_ID);
-            const parent = anchor?.parentElement;
+            if (!container) return;
 
-            if (!container || !anchor || !parent) {
-                container?.classList.remove(MOUNT_DOCKED_CLASS);
-                setDocked(false);
+            const target = findDockTarget();
+
+            if (target) {
+                if (container.parentElement !== target.column || container.nextElementSibling !== target.anchor)
+                    target.column.insertBefore(container, target.anchor);
+
+                dockColumn.current = target.column;
+            } else if (dockColumn.current?.isConnected) {
+                // Docked already and the anchor is gone (the track stopped): stay exactly where we
+                // are, rather than dumping ourselves back out as a floating overlay.
+                if (container.parentElement !== dockColumn.current)
+                    dockColumn.current.insertBefore(container, dockColumn.current.lastElementChild);
+            } else {
+                dockColumn.current = null;
+                container.classList.remove(MOUNT_DOCKED_CLASS);
+                if (container.parentElement !== document.body) document.body.appendChild(container);
+
+                setDocked(current => current ? false : current);
                 return;
             }
 
-            if (container.parentElement !== parent || container.nextElementSibling !== anchor)
-                parent.insertBefore(container, anchor);
-
             container.classList.add(MOUNT_DOCKED_CLASS);
-            setDocked(true);
+            setDocked(current => current ? current : true);
         };
 
         const schedule = () => {
@@ -254,10 +291,10 @@ function Panel() {
 
         applyDock();
 
-        // Discord re-renders that column often, and React will not preserve a node it does not own.
-        const observer = new MutationObserver(() => {
-            if (!container?.isConnected) schedule();
-        });
+        // The music card comes and goes with playback and Discord re-renders that column often
+        // (React will not preserve a node it does not own), so re-check on every DOM change -
+        // throttled to one pass per frame and idempotent, so it cannot loop on its own writes.
+        const observer = new MutationObserver(schedule);
         observer.observe(document.body, { childList: true, subtree: true });
 
         window.addEventListener("resize", schedule);
@@ -267,6 +304,7 @@ function Panel() {
             window.removeEventListener("resize", schedule);
             if (frame) cancelAnimationFrame(frame);
             container?.classList.remove(MOUNT_DOCKED_CLASS);
+            dockColumn.current = null;
         };
     }, []);
 
