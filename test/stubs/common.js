@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 export const state = {
     myChannelId: "chan1",
     voiceStates: {},
+    rtcParticipants: [],
     users: {},
     nicks: {},
     channels: {}
@@ -24,6 +25,15 @@ export const SelectedChannelStore = {
 export const VoiceStateStore = {
     getVoiceStatesForChannel: (channelId) =>
         Object.fromEntries(Object.entries(state.voiceStates).filter(([, s]) => s.channelId === channelId)),
+    addChangeListener() {}, removeChangeListener() {}
+};
+
+export const ChannelRTCStore = {
+    // Mirrors ChannelRTCStore.getParticipants / getParticipant: the participant list Discord's
+    // own voice UI renders, carrying `user`, the resolved `userNick` and the `speaking` flag.
+    getParticipants: (_channelId) => state.rtcParticipants,
+    getParticipant: (_channelId, participantId) =>
+        state.rtcParticipants.find(p => p.user?.id === participantId) ?? null,
     addChangeListener() {}, removeChangeListener() {}
 };
 

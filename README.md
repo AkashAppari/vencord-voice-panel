@@ -13,6 +13,8 @@ quietly drops out and you would otherwise have to switch servers to find out who
 - One row per member: avatar, nickname (falling back to global name, then username), and badges
   for self/server mute, self/server deafen, streaming, and camera.
 - A log under the list: `bobby left - 14:32`, `Carol joined - 14:35`, newest first.
+- A green ring around whoever is talking, matching Discord's own voice UI, with muted or deafened
+  members dimmed.
 - Nothing at all when you are not connected to a voice channel.
 
 ## Important: it follows *this* client only
@@ -65,9 +67,13 @@ where you want it.
 ## How it works, and what it does not touch
 
 - **No patches.** The plugin declares no `patches` at all, so it never rewrites Discord's own code.
-  It mounts one `position: fixed` div into the document body and renders React into it, and it reads
-  voice state from `VoiceStateStore`, user data from `UserStore`, nicknames from `GuildMemberStore`,
-  and join/leave events from the `VOICE_STATE_UPDATES` flux event.
+  It mounts one `position: fixed` div into the document body and renders React into it.
+- Member rows and the speaking ring come from `ChannelRTCStore.getParticipants()` — the same
+  participant list Discord's own voice UI renders, which is why the names and the ring match it.
+  When that list is unavailable it falls back to `VoiceStateStore`, so the panel cannot silently
+  go blank, and it never depends on a user entity resolving before it draws a row.
+- Join and leave events come from the `VOICE_STATE_UPDATES` flux event. A name resolves through
+  `ChannelRTCStore.getParticipant()` → `GuildMemberStore.getNick()` → `UserStore`.
 - Because it patches nothing, Discord updates will not break it the way a patch-based plugin breaks;
   only a rename inside Discord's stores would.
 - Clicking anywhere outside the panel behaves normally; the panel only occupies its own card.
@@ -76,8 +82,9 @@ where you want it.
 
 `test/` renders the plugin in Node with the Vencord modules stubbed, against a real DOM, and drives
 real voice-state events through it — member list, nickname fallback, mute badge, leave/join log
-text and ordering, your own transitions being ignored, dragging and its clamping, and the panel
-disappearing when you disconnect.
+text and ordering, your own transitions being ignored, dragging and its clamping, the speaking ring
+and quiet state, the RTC participant list being preferred while stream participants are not listed
+as members, and the panel disappearing when you disconnect.
 
 ```bash
 cd test

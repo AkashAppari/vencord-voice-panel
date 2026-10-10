@@ -11,6 +11,7 @@ import { classNameFactory } from "@utils/css";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
 import {
+    ChannelRTCStore,
     ChannelStore,
     createRoot,
     FluxDispatcher,
@@ -28,6 +29,10 @@ import "./style.css";
 
 const cl = classNameFactory("vc-voiceChannelPanel-");
 const logger = new Logger("VoiceChannelPanel");
+
+// ParticipantType.USER from Vencord's discord-types. That module declares it as a `const enum`,
+// which esbuild cannot inline at runtime, so the value is spelled out here rather than imported.
+const PARTICIPANT_TYPE_USER: number = 2;
 
 const settings = definePluginSettings({
     offsetLeft: {
@@ -80,11 +85,110 @@ interface DragStartEvent {
     clientY: number;
 }
 
+interface MemberRow {
+    userId: string;
+    name: string;
+    avatarUrl: string;
+    speaking: boolean;
+    mute: boolean;
+    deaf: boolean;
+    stream: boolean;
+    video: boolean;
+    isMe: boolean;
+}
+
+// `||`, not `??`: an empty string is just as unusable as undefined here, and some stores hand
+// back "" for "no nickname" instead of null.
 function displayName(userId: string, guildId: string | null | undefined, fallback: string) {
     const user = UserStore.getUser(userId);
     const nick = guildId ? GuildMemberStore.getNick(guildId, userId) : null;
 
-    return nick ?? user?.globalName ?? user?.username ?? fallback;
+    return nick || user?.globalName || user?.username || fallback;
+}
+
+/**
+ * Discord's own participant list for a voice channel. This is what the normal voice UI renders,
+ * and it carries the resolved nickname (`userNick`) and the live `speaking` flag, so names here
+ * cannot disagree with what Discord shows.
+ */
+function rowsFromRTC(channelId: string): MemberRow[] {
+    const myId = UserStore.getCurrentUser()?.id;
+    const guildId = ChannelStore.getChannel(channelId)?.guild_id;
+
+    return ChannelRTCStore.getParticipants(channelId)
+        .map(p => p as any)
+        .filter(p => p.type === PARTICIPANT_TYPE_USER && !!p.user)
+        .map(p => {
+            const vs = p.voiceState;
+            const rowGuildId = vs?.guildId ?? guildId;
+
+            return {
+                userId: p.user.id,
+                name: p.userNick || displayName(p.user.id, rowGuildId, "Unknown"),
+                avatarUrl: p.user.getAvatarURL(rowGuildId, 24),
+                speaking: !!p.speaking,
+                mute: !!(vs?.selfMute || vs?.mute),
+                deaf: !!(vs?.selfDeaf || vs?.deaf),
+                stream: !!(vs?.selfStream || vs?.stream),
+                video: !!vs?.selfVideo,
+                isMe: p.user.id === myId
+            };
+        });
+}
+
+/** Fallback for when the RTC participant list is not populated: voice states straight from the store. */
+function rowsFromVoiceStates(channelId: string): MemberRow[] {
+    const myId = UserStore.getCurrentUser()?.id;
+    const guildId = ChannelStore.getChannel(channelId)?.guild_id;
+
+    return Object.values(VoiceStateStore.getVoiceStatesForChannel(channelId) ?? {})
+        .filter(state => !!state?.userId)
+        .map(state => {
+            const userId = state.userId;
+            const user = UserStore.getUser(userId);
+
+            return {
+                userId,
+                name: displayName(userId, guildId, "Unknown"),
+                // A row with no resolvable user still renders, so a missing entity can never
+                // silently empty the whole member list.
+                avatarUrl: user?.getAvatarURL(guildId, 24) ?? "",
+                speaking: false,
+                mute: !!(state.selfMute || state.mute),
+                deaf: !!(state.selfDeaf || state.deaf),
+                stream: !!(state.selfStream || state.stream),
+                video: !!state.selfVideo,
+                isMe: userId === myId
+            };
+        });
+}
+
+function readRows(channelId: string): MemberRow[] {
+    try {
+        const rtc = rowsFromRTC(channelId);
+        if (rtc.length) return rtc;
+    } catch (err) {
+        logger.error("Could not read the RTC participant list, falling back to voice states", err);
+    }
+
+    try {
+        return rowsFromVoiceStates(channelId);
+    } catch (err) {
+        logger.error("Could not read voice states", err);
+        return [];
+    }
+}
+
+/** The name to log a join or leave under, preferring the nickname Discord itself would show. */
+function nameForLog(userId: string, channelId: string, fallback: string) {
+    try {
+        const participant = ChannelRTCStore.getParticipant(channelId, userId) as any;
+        if (participant?.userNick) return participant.userNick;
+    } catch {
+        // fall through to the store-based lookup below
+    }
+
+    return displayName(userId, ChannelStore.getChannel(channelId)?.guild_id, fallback);
 }
 
 function Panel() {
@@ -98,8 +202,8 @@ function Panel() {
     ]);
 
     const rows = useStateFromStores(
-        [VoiceStateStore, UserStore, ChannelStore],
-        () => Object.values(VoiceStateStore.getVoiceStatesForChannel(channelId!) ?? {})
+        [VoiceStateStore, UserStore, ChannelStore, ChannelRTCStore],
+        () => (channelId ? readRows(channelId) : [])
     );
 
     const [log, setLog] = useState<LogEntry[]>([]);
@@ -115,7 +219,6 @@ function Panel() {
         const handler = (e: { voiceStates: VoiceStateChangeEvent[]; }) => {
             try {
                 const myId = UserStore.getCurrentUser().id;
-                const guildId = ChannelStore.getChannel(channelId)?.guild_id;
 
                 for (const state of e.voiceStates) {
                     if (state.userId === myId) continue;
@@ -126,7 +229,7 @@ function Panel() {
                     if (!left && !(joined && settings.store.showJoins)) continue;
 
                     const kind: LogEntry["kind"] = left ? "leave" : "join";
-                    const name = displayName(state.userId, guildId, "Someone");
+                    const name = nameForLog(state.userId, channelId, "Someone");
                     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
                     const text = `${name} ${kind === "leave" ? "left" : "joined"} - ${time}`;
 
@@ -189,8 +292,6 @@ function Panel() {
     if (!channelId) return null;
 
     const channel = ChannelStore.getChannel(channelId);
-    const guildId = channel?.guild_id;
-    const myId = UserStore.getCurrentUser().id;
 
     return (
         <div
@@ -208,25 +309,28 @@ function Panel() {
                 <span className={cl("count")}>{rows.length}</span>
             </div>
             <div className={cl("members")}>
-                {rows.map(state => {
-                    const user = UserStore.getUser(state.userId);
-                    if (!user) return null;
-
-                    const isMe = state.userId === myId;
-
-                    return (
-                        <div key={state.userId} className={isMe ? `${cl("row")} ${cl("me")}` : cl("row")}>
-                            <img className={cl("avatar")} src={user.getAvatarURL(guildId, 24)} alt="" />
-                            <span className={cl("name")}>{displayName(state.userId, guildId, "Unknown")}</span>
-                            <span className={cl("badges")}>
-                                {(state.selfMute || state.mute) && <Microphone height={14} width={14} />}
-                                {(state.selfDeaf || state.deaf) && <span className={cl("badge")}>D</span>}
-                                {(state.selfStream || state.stream) && <ScreenshareIcon height={14} width={14} />}
-                                {state.selfVideo && <span className={cl("badge")}>cam</span>}
-                            </span>
-                        </div>
-                    );
-                })}
+                {rows.map(row => (
+                    <div
+                        key={row.userId}
+                        className={[
+                            cl("row"),
+                            row.isMe && cl("me"),
+                            row.speaking && cl("speaking"),
+                            (row.mute || row.deaf) && cl("quiet")
+                        ].filter(Boolean).join(" ")}
+                    >
+                        {row.avatarUrl
+                            ? <img className={cl("avatar")} src={row.avatarUrl} alt="" />
+                            : <span className={cl("avatar")} />}
+                        <span className={cl("name")}>{row.name}</span>
+                        <span className={cl("badges")}>
+                            {row.mute && <Microphone height={14} width={14} />}
+                            {row.deaf && <span className={cl("badge")}>D</span>}
+                            {row.stream && <ScreenshareIcon height={14} width={14} />}
+                            {row.video && <span className={cl("badge")}>cam</span>}
+                        </span>
+                    </div>
+                ))}
             </div>
             {showLog && log.length > 0 && (
                 <div className={cl("log")}>

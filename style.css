@@ -56,6 +56,25 @@
     font-weight: 600;
 }
 
+/* While talking: the same green ring Discord's own voice UI puts around the avatar. */
+.vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-avatar {
+    box-shadow: 0 0 0 2px var(--status-online, #23a55a);
+}
+
+.vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-name {
+    color: var(--text-normal);
+    font-weight: 600;
+}
+
+/* Muted or deafened: dimmed the way Discord dims them. */
+.vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-avatar {
+    opacity: 0.55;
+}
+
+.vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-name {
+    color: var(--text-muted);
+}
+
 .vc-voiceChannelPanel-avatar {
     width: 20px;
     height: 20px;

@@ -172,6 +172,36 @@ await act(async () => {
 const aliceRow = [...document.querySelectorAll(".vc-voiceChannelPanel-row")].find(r => r.textContent.includes("Alice"));
 check("a self-muted member shows the mic badge", !!aliceRow?.querySelector('[data-icon="mic"]'), aliceRow?.innerHTML ?? "no alice row");
 
+// ---- Discord's own participant list: resolved nicknames and the speaking indicator
+common.state.rtcParticipants = [
+    {
+        type: 2, user: common.state.users.alice, userNick: "Alice (rtc)", speaking: true,
+        voiceState: voiceState("alice", "chan1", undefined)
+    },
+    {
+        type: 2, user: me, userNick: "Akash (rtc)", speaking: false,
+        voiceState: { ...voiceState("me", "chan1", undefined), selfMute: true }
+    },
+    { type: 0, user: common.state.users.bob, userNick: "a stream participant" }
+];
+await act(async () => { plugin.stop(); });
+await act(async () => { plugin.start(); });
+
+check("participant nicknames from the RTC store are used", rowNames().some(n => n.includes("Alice (rtc)")), JSON.stringify(rowNames()));
+check("stream participants are not listed as members", !rowNames().some(n => n.includes("a stream participant")), JSON.stringify(rowNames()));
+
+const speakingRow = document.querySelector(".vc-voiceChannelPanel-speaking");
+check("the speaking member is marked as speaking", !!speakingRow && speakingRow.textContent.includes("Alice (rtc)"), html().slice(-700));
+
+const akashRow = [...document.querySelectorAll(".vc-voiceChannelPanel-row")].find(r => r.textContent.includes("Akash (rtc)"));
+check("a member who is not speaking is not marked", !!akashRow && !akashRow.classList.contains("vc-voiceChannelPanel-speaking"), akashRow?.outerHTML ?? "no row");
+check("mute coming from the RTC voice state is marked", !!akashRow?.classList.contains("vc-voiceChannelPanel-quiet") && !!akashRow?.querySelector('[data-icon="mic"]'), akashRow?.outerHTML ?? "no row");
+
+// back to voice states for the remaining checks
+common.state.rtcParticipants = [];
+await act(async () => { plugin.stop(); });
+await act(async () => { plugin.start(); });
+
 // ---- dragging writes settings and stays on screen
 const header = document.querySelector(".vc-voiceChannelPanel-header");
 const settingsModule = await import(path.join(STUBS, "settings.js"));
