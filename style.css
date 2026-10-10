@@ -1,0 +1,106 @@
+.vc-voiceChannelPanel-panel {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    font-size: 12px;
+    color: var(--text-normal);
+    background: var(--background-floating);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm, 8px);
+    box-shadow: var(--shadow-high);
+}
+
+.vc-voiceChannelPanel-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 4px;
+    color: var(--text-muted);
+    font-weight: 600;
+    cursor: grab;
+    user-select: none;
+}
+
+.vc-voiceChannelPanel-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-voiceChannelPanel-count {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+}
+
+.vc-voiceChannelPanel-members {
+    display: flex;
+    flex-direction: column;
+    max-height: 45vh;
+    overflow-y: auto;
+}
+
+.vc-voiceChannelPanel-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.vc-voiceChannelPanel-row:hover {
+    background: var(--background-modifier-hover);
+}
+
+.vc-voiceChannelPanel-me {
+    font-weight: 600;
+}
+
+.vc-voiceChannelPanel-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+}
+
+.vc-voiceChannelPanel-name {
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-voiceChannelPanel-badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+    color: var(--text-muted);
+}
+
+.vc-voiceChannelPanel-badge {
+    font-size: 10px;
+    line-height: 1;
+    padding: 1px 3px;
+    border-radius: 3px;
+    background: var(--background-modifier-hover);
+}
+
+.vc-voiceChannelPanel-log {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 20vh;
+    overflow-y: auto;
+    padding-top: 4px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.vc-voiceChannelPanel-log-entry {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.vc-voiceChannelPanel-leave {
+    color: var(--text-danger, var(--text-muted));
+}
