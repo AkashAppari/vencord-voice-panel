@@ -83,8 +83,8 @@ away, and returns to floating only if the column itself is torn down.
 
 - **No patches.** The plugin declares no `patches` at all, so it never rewrites Discord's own code.
   It mounts one div into the document body and renders React into it. Docking is plain DOM work —
-  the mount is moved into Discord's column, and is `display: contents`, so the card itself is the
-  flex item that column positions.
+  the mount is moved into Discord's column, so that column lays the panel out as one of its own
+  children instead of our positioning it over the app.
 - **Theme colours with literal fallbacks.** The panel uses Discord's own variables
   (`--background-base-low`, `--text-normal`, …) so a docked panel matches the client's theme. Each
   carries a hardcoded fallback, because the floating panel renders outside the themed wrapper where

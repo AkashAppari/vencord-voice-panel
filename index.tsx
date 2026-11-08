@@ -34,6 +34,15 @@ const logger = new Logger("VoiceChannelPanel");
 // which esbuild cannot inline at runtime, so the value is spelled out here rather than imported.
 const PARTICIPANT_TYPE_USER: number = 2;
 
+const AVATAR_SIZE = 24;
+const BADGE_ICON_SIZE = 14;
+// Floating mode only: the stacking order the panel was tuned to against the live client.
+const FLOATING_Z_INDEX = 1002;
+// While dragging, keep at least this much of the panel on screen so it can always be grabbed again
+// (horizontally on either edge, vertically below the top).
+const DRAG_MIN_VISIBLE_X = 80;
+const DRAG_MIN_VISIBLE_Y = 60;
+
 // Vencord's own SpotifyControls renders its card as `<div id="vc-spotify-player">`, a sibling of
 // Discord's account panel. Docking above it therefore means putting our node immediately before it
 // in that column, so the sidebar lays the two out together instead of us floating over whatever is
@@ -108,6 +117,7 @@ interface VoiceStateChangeEvent {
 
 interface LogEntry {
     id: number;
+    channelId: string;
     text: string;
     kind: "join" | "leave";
 }
@@ -115,6 +125,26 @@ interface LogEntry {
 interface DragStartEvent {
     clientX: number;
     clientY: number;
+}
+
+// The mute/deaf/stream/video flags, which voice-state objects and RTC participants both carry.
+interface VoiceFlags {
+    selfMute?: boolean;
+    mute?: boolean;
+    selfDeaf?: boolean;
+    deaf?: boolean;
+    selfStream?: boolean;
+    stream?: boolean;
+    selfVideo?: boolean;
+}
+
+// The slice of an RTC participant this plugin reads; the store's own typings do not expose it.
+interface RtcParticipant {
+    type: number;
+    user?: NonNullable<ReturnType<typeof UserStore.getUser>>;
+    userNick?: string;
+    speaking?: boolean;
+    voiceState?: VoiceFlags & { guildId?: string; };
 }
 
 interface MemberRow {
@@ -130,12 +160,27 @@ interface MemberRow {
 }
 
 // `||`, not `??`: an empty string is just as unusable as undefined here, and some stores hand
-// back "" for "no nickname" instead of null.
-function displayName(userId: string, guildId: string | null | undefined, fallback: string) {
+// back "" for "no nickname" instead of null. `rtcNick` is the nickname Discord's participant list
+// already resolved; it wins when present.
+function displayName(userId: string, guildId: string | null | undefined, fallback: string, rtcNick?: string) {
     const user = UserStore.getUser(userId);
     const nick = guildId ? GuildMemberStore.getNick(guildId, userId) : null;
 
-    return nick || user?.globalName || user?.username || fallback;
+    return rtcNick || nick || user?.globalName || user?.username || fallback;
+}
+
+function flagsOf(vs: VoiceFlags | undefined): Pick<MemberRow, "mute" | "deaf" | "stream" | "video"> {
+    return {
+        mute: !!(vs?.selfMute || vs?.mute),
+        deaf: !!(vs?.selfDeaf || vs?.deaf),
+        stream: !!(vs?.selfStream || vs?.stream),
+        video: !!vs?.selfVideo
+    };
+}
+
+function rowsEqual(a: MemberRow[], b: MemberRow[]) {
+    return a.length === b.length && a.every((row, i) =>
+        (Object.keys(row) as (keyof MemberRow)[]).every(key => row[key] === b[i][key]));
 }
 
 /**
@@ -148,21 +193,19 @@ function rowsFromRTC(channelId: string): MemberRow[] {
     const guildId = ChannelStore.getChannel(channelId)?.guild_id;
 
     return ChannelRTCStore.getParticipants(channelId)
-        .map(p => p as any)
-        .filter(p => p.type === PARTICIPANT_TYPE_USER && !!p.user)
+        .map(p => p as unknown as RtcParticipant)
+        .filter((p): p is RtcParticipant & { user: NonNullable<RtcParticipant["user"]>; } =>
+            p.type === PARTICIPANT_TYPE_USER && !!p.user)
         .map(p => {
             const vs = p.voiceState;
             const rowGuildId = vs?.guildId ?? guildId;
 
             return {
                 userId: p.user.id,
-                name: p.userNick || displayName(p.user.id, rowGuildId, "Unknown"),
-                avatarUrl: p.user.getAvatarURL(rowGuildId, 24),
+                name: displayName(p.user.id, rowGuildId, "Unknown", p.userNick),
+                avatarUrl: p.user.getAvatarURL(rowGuildId, AVATAR_SIZE),
                 speaking: !!p.speaking,
-                mute: !!(vs?.selfMute || vs?.mute),
-                deaf: !!(vs?.selfDeaf || vs?.deaf),
-                stream: !!(vs?.selfStream || vs?.stream),
-                video: !!vs?.selfVideo,
+                ...flagsOf(vs),
                 isMe: p.user.id === myId
             };
         });
@@ -184,12 +227,9 @@ function rowsFromVoiceStates(channelId: string): MemberRow[] {
                 name: displayName(userId, guildId, "Unknown"),
                 // A row with no resolvable user still renders, so a missing entity can never
                 // silently empty the whole member list.
-                avatarUrl: user?.getAvatarURL(guildId, 24) ?? "",
+                avatarUrl: user?.getAvatarURL(guildId, AVATAR_SIZE) ?? "",
                 speaking: false,
-                mute: !!(state.selfMute || state.mute),
-                deaf: !!(state.selfDeaf || state.deaf),
-                stream: !!(state.selfStream || state.stream),
-                video: !!state.selfVideo,
+                ...flagsOf(state),
                 isMe: userId === myId
             };
         });
@@ -213,14 +253,15 @@ function readRows(channelId: string): MemberRow[] {
 
 /** The name to log a join or leave under, preferring the nickname Discord itself would show. */
 function nameForLog(userId: string, channelId: string, fallback: string) {
+    let rtcNick: string | undefined;
+
     try {
-        const participant = ChannelRTCStore.getParticipant(channelId, userId) as any;
-        if (participant?.userNick) return participant.userNick;
+        rtcNick = (ChannelRTCStore.getParticipant(channelId, userId) as unknown as RtcParticipant | undefined)?.userNick;
     } catch {
         // fall through to the store-based lookup below
     }
 
-    return displayName(userId, ChannelStore.getChannel(channelId)?.guild_id, fallback);
+    return displayName(userId, ChannelStore.getChannel(channelId)?.guild_id, fallback, rtcNick);
 }
 
 function Panel() {
@@ -235,8 +276,12 @@ function Panel() {
 
     const rows = useStateFromStores(
         [VoiceStateStore, UserStore, ChannelStore, ChannelRTCStore],
-        () => (channelId ? readRows(channelId) : [])
+        () => (channelId ? readRows(channelId) : []),
+        undefined,
+        // readRows builds fresh objects every call; without this every store tick re-renders.
+        rowsEqual
     );
+    const inVoice = !!channelId;
 
     const [log, setLog] = useState<LogEntry[]>([]);
     const [docked, setDocked] = useState(false);
@@ -250,6 +295,10 @@ function Panel() {
      * the offsets in its settings.
      */
     useEffect(() => {
+        // Nothing is rendered outside a call, so there is nothing to place - and no reason to
+        // watch every DOM mutation in the client.
+        if (!inVoice) return;
+
         let frame = 0;
 
         const applyDock = () => {
@@ -306,10 +355,12 @@ function Panel() {
             container?.classList.remove(MOUNT_DOCKED_CLASS);
             dockColumn.current = null;
         };
-    }, []);
+    }, [inVoice]);
 
+    // Entries are tagged with their channel and filtered at render, so the previous channel's log
+    // never shows for the frame before this effect clears it.
     useEffect(() => {
-        setLog([]);
+        setLog(prev => prev.length ? [] : prev);
     }, [channelId]);
 
     useEffect(() => {
@@ -317,7 +368,7 @@ function Panel() {
 
         const handler = (e: { voiceStates: VoiceStateChangeEvent[]; }) => {
             try {
-                const myId = UserStore.getCurrentUser().id;
+                const myId = UserStore.getCurrentUser()?.id;
 
                 for (const state of e.voiceStates) {
                     if (state.userId === myId) continue;
@@ -332,7 +383,7 @@ function Panel() {
                     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
                     const text = `${name} ${kind === "leave" ? "left" : "joined"} - ${time}`;
 
-                    setLog(prev => [{ id: Date.now() + Math.random(), text, kind }, ...prev].slice(0, settings.store.logSize));
+                    setLog(prev => [{ id: Date.now() + Math.random(), channelId, text, kind }, ...prev].slice(0, settings.store.logSize));
                 }
             } catch (err) {
                 logger.error("Failed to handle a voice state update", err);
@@ -368,10 +419,10 @@ function Panel() {
             frame = requestAnimationFrame(() => {
                 frame = 0;
 
-                const maxLeft = window.innerWidth - 80;
-                const minLeft = 80 - settings.store.width;
+                const maxLeft = window.innerWidth - DRAG_MIN_VISIBLE_X;
+                const minLeft = DRAG_MIN_VISIBLE_X - settings.store.width;
                 const left = Math.min(Math.max(startLeft + (moveEvent.clientX - startX), minLeft), maxLeft);
-                const bottom = Math.min(Math.max(startBottom - (moveEvent.clientY - startY), 0), window.innerHeight - 60);
+                const bottom = Math.min(Math.max(startBottom - (moveEvent.clientY - startY), 0), window.innerHeight - DRAG_MIN_VISIBLE_Y);
 
                 settings.store.offsetLeft = left;
                 settings.store.offsetBottom = bottom;
@@ -394,16 +445,19 @@ function Panel() {
     if (!channelId) return null;
 
     const channel = ChannelStore.getChannel(channelId);
+    const visibleLog = log.filter(entry => entry.channelId === channelId);
 
     return (
         <div
+            role="region"
+            aria-label={`${channel?.name ?? "Voice"} members`}
             className={[cl("panel"), docked && cl("docked")].filter(Boolean).join(" ")}
             style={docked ? undefined : {
                 position: "fixed",
                 left: `${offsetLeft}px`,
                 bottom: `${offsetBottom}px`,
                 width: `${width}px`,
-                zIndex: 1002
+                zIndex: FLOATING_Z_INDEX
             }}
         >
             <div className={cl("header")} onMouseDown={onHeaderMouseDown}>
@@ -426,17 +480,17 @@ function Panel() {
                             : <span className={cl("avatar")} />}
                         <span className={cl("name")}>{row.name}</span>
                         <span className={cl("badges")}>
-                            {row.mute && <Microphone height={14} width={14} />}
-                            {row.deaf && <span className={cl("badge")}>D</span>}
-                            {row.stream && <ScreenshareIcon height={14} width={14} />}
-                            {row.video && <span className={cl("badge")}>cam</span>}
+                            {row.mute && <span role="img" title="Muted" aria-label="Muted"><Microphone height={BADGE_ICON_SIZE} width={BADGE_ICON_SIZE} /></span>}
+                            {row.deaf && <span className={cl("badge")} role="img" title="Deafened" aria-label="Deafened">D</span>}
+                            {row.stream && <span role="img" title="Streaming" aria-label="Streaming"><ScreenshareIcon height={BADGE_ICON_SIZE} width={BADGE_ICON_SIZE} /></span>}
+                            {row.video && <span className={cl("badge")} role="img" title="Camera on" aria-label="Camera on">cam</span>}
                         </span>
                     </div>
                 ))}
             </div>
-            {showLog && log.length > 0 && (
+            {showLog && visibleLog.length > 0 && (
                 <div className={cl("log")}>
-                    {log.map(entry => (
+                    {visibleLog.map(entry => (
                         <div key={entry.id} className={cl("log-entry", entry.kind)}>{entry.text}</div>
                     ))}
                 </div>

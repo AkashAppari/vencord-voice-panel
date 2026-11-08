@@ -22,9 +22,9 @@
 }
 
 /*
- * Docked: the mount is `display: contents`, so this card becomes a child of Discord's sidebar column
- * and that column lays it out. Matching the music card's own geometry (flush margins, 10px top
- * corners, a bottom hairline) makes the two read as one stack.
+ * Docked: the mount div is moved into Discord's sidebar column as one of its children, so that
+ * column lays it out and this card fills it - no positioning of our own. Matching the music card's
+ * own geometry (flush margins, 10px top corners, a bottom hairline) makes the two read as one stack.
  */
 .vc-voiceChannelPanel-docked {
     position: static;
