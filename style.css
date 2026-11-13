@@ -1,0 +1,182 @@
+/*
+ * VoiceChannelPanel
+ *
+ * Colours come from Discord's own variables so a docked panel matches the client's theme - docked,
+ * the panel sits inside the themed tree where those variables exist. Each one carries a literal
+ * fallback, because the floating panel lives outside that tree and a var() that resolves to nothing
+ * leaves the text on the browser default (black) - invisible on a dark background. The fallbacks are
+ * the values Discord itself ships, so the panel reads the same either way.
+ */
+
+.vc-voiceChannelPanel-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    font-size: 12px;
+    color: var(--text-normal, #ffffff);
+    background: var(--background-base-low, #1e1f22);
+    border: 1px solid var(--border-subtle, #3f4147);
+    border-radius: var(--radius-sm, 8px);
+    box-shadow: var(--shadow-high, 0 8px 16px rgba(0, 0, 0, 0.4));
+}
+
+/*
+ * Docked: the mount div is moved into Discord's sidebar column as one of its children, so that
+ * column lays it out and this card fills it - no positioning of our own. Matching the music card's
+ * own geometry (flush margins, 10px top corners, a bottom hairline) makes the two read as one stack.
+ */
+.vc-voiceChannelPanel-docked {
+    position: static;
+    width: auto;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 1px solid var(--border-subtle, #3f4147);
+    border-radius: 10px 10px 0 0;
+    box-shadow: none;
+}
+
+.vc-voiceChannelPanel-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 4px;
+    color: var(--text-muted, #b5bac1);
+    font-weight: 600;
+    cursor: grab;
+    user-select: none;
+}
+
+/* A docked panel is placed by the sidebar, so there is nothing to drag. */
+.vc-voiceChannelPanel-docked .vc-voiceChannelPanel-header {
+    cursor: default;
+}
+
+.vc-voiceChannelPanel-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-voiceChannelPanel-count {
+    flex: 0 0 auto;
+    color: var(--text-muted, #b5bac1);
+}
+
+.vc-voiceChannelPanel-members {
+    display: flex;
+    flex-direction: column;
+    max-height: 45vh;
+    overflow-y: auto;
+}
+
+/* The sidebar column is fixed height, so cap the list harder while docked. */
+.vc-voiceChannelPanel-docked .vc-voiceChannelPanel-members {
+    max-height: 30vh;
+}
+
+.vc-voiceChannelPanel-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.vc-voiceChannelPanel-row:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+}
+
+.vc-voiceChannelPanel-me {
+    font-weight: 600;
+}
+
+/* While talking: the green ring Discord's own voice UI puts around the avatar. */
+.vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-avatar {
+    box-shadow: 0 0 0 2px var(--status-online, #23a55a);
+}
+
+.vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-name {
+    color: var(--text-strong, #ffffff);
+    font-weight: 600;
+}
+
+/* Muted or deafened: dimmed the way Discord dims them. */
+.vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-avatar {
+    opacity: 0.55;
+}
+
+.vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-name {
+    color: var(--text-muted, #b5bac1);
+}
+
+.vc-voiceChannelPanel-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    background: var(--background-modifier-accent, #3f4147);
+}
+
+.vc-voiceChannelPanel-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-normal, #ffffff);
+}
+
+.vc-voiceChannelPanel-badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+    color: var(--text-muted, #b5bac1);
+}
+
+/* Mute, deafen, streaming and camera are icons; the slash marks the two off states. */
+.vc-voiceChannelPanel-badge-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: inherit;
+}
+
+/*
+ * The diagonal bar Discord strikes its own icons with. Painted over the glyph instead of cut out of
+ * it, with a halo in the panel colour so the bar stays legible where it crosses a filled shape.
+ */
+.vc-voiceChannelPanel-badge-slashed::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2px;
+    height: 132%;
+    border-radius: 1px;
+    background: currentColor;
+    box-shadow: 0 0 0 1.6px var(--background-base-low, #1e1f22);
+    transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+.vc-voiceChannelPanel-log {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 20vh;
+    overflow-y: auto;
+    padding-top: 4px;
+    border-top: 1px solid var(--border-subtle, #3f4147);
+}
+
+.vc-voiceChannelPanel-log-entry {
+    font-size: 11px;
+    color: var(--text-muted, #b5bac1);
+}
+
+.vc-voiceChannelPanel-leave {
+    color: var(--text-danger, #ff8a8a);
+}
