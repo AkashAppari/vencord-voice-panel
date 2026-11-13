@@ -49,6 +49,50 @@ pnpm inject
 Then restart Discord and enable **VoiceChannelPanel** in Settings → Vencord → Plugins.
 After any change to the plugin, re-run `pnpm build` and restart Discord.
 
+## Already using Vencord from the official installer
+
+The installer ships a prebuilt Vencord, and **a prebuilt Vencord cannot load userplugins** - the plugin
+folder is only read by a build compiled from source. Switching is a one-time job: `pnpm inject`
+re-points your existing Discord install at the build you compile, so you don't have to uninstall
+anything first, and nothing about your Discord account changes.
+
+```bash
+# needs git, Node.js 22+ and pnpm 11
+git clone https://github.com/Vendicated/Vencord
+cd Vencord
+mkdir -p src/userplugins          # PowerShell: New-Item -ItemType Directory -Force src\userplugins
+git clone https://github.com/AkashAppari/vencord-voice-panel src/userplugins/voiceChannelPanel
+pnpm install --frozen-lockfile
+pnpm build
+pnpm inject                       # quit Discord from the tray first, not just close the window
+```
+
+Start Discord and enable **VoiceChannelPanel** in Settings -> Vencord -> Plugins.
+
+Two things trip people up here:
+
+- **Your Vencord settings don't follow you automatically.** The installer's build keeps its settings in
+  `%APPDATA%\Vencord`; a source build keeps them inside the checkout, under `Vencord\settings`. To keep
+  your enabled plugins, keybinds and themes, copy the `settings` folder (and `themes`, if you use it)
+  from `%APPDATA%\Vencord` into `Vencord\` before you start Discord. Otherwise you begin on defaults
+  and re-enable what you use.
+- **Every Discord update undoes the patch.** Discord replaces its own app folder when it updates, so
+  Vencord stops loading and the plugin disappears from its settings until you run `pnpm build` and
+  `pnpm inject` again. Nothing is broken when that happens.
+
+If Discord still comes up with the old prebuilt Vencord after injecting, run the official installer
+once and pick Uninstall, then `pnpm inject` again.
+
+Updating the plugin later is two pulls, a rebuild and a restart:
+
+```bash
+cd Vencord
+git pull                                            # Vencord itself
+git -C src/userplugins/voiceChannelPanel pull       # this plugin
+pnpm install --frozen-lockfile
+pnpm build
+```
+
 ## Settings
 
 | Setting | Default | What it does |
