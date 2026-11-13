@@ -4,9 +4,9 @@ A [Vencord](https://vencord.dev) userplugin that puts a small panel above Discor
 area, showing **who is in the voice channel you are connected to right now** — plus a running log of
 who joined and who left, with the time.
 
-<img src="docs/panel.png" width="300" alt="The panel docked above Discord's account panel: eight members, one speaking, one on camera, one sharing their screen, two muted and deafened, and a log of who joined and left.">
+<img src="docs/panel.png" width="300" alt="Simulated preview of the panel docked above Discord's account panel: eight members, one speaking, one on camera, one sharing their screen, two muted and deafened, and a log of who joined and left.">
 
-*Illustration of the panel docked above the account panel. Names are fictional.*
+*Simulated preview, not a screenshot — it is drawn from the plugin's own layout and colours, and the names are fictional.*
 
 Where exactly it sits: the panel docks into the bottom-left sidebar column — above Vencord's music
 card while a track is playing, otherwise above the account panel itself — laid out by Discord like
