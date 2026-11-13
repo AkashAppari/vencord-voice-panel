@@ -67,7 +67,7 @@ pnpm build
 pnpm inject                       # quit Discord from the tray first, not just close the window
 ```
 
-Start Discord and enable **VoiceChannelPanel** in Settings -> Vencord -> Plugins.
+Start Discord and enable **VoiceChannelPanel** in Settings → Vencord → Plugins.
 
 Two things trip people up here:
 
