@@ -64,6 +64,27 @@
     color: var(--text-muted, #b5bac1);
 }
 
+.vc-voiceChannelPanel-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+}
+
+/* The pop-out button: a bare glyph in the header's muted colour, like the badges. */
+.vc-voiceChannelPanel-icon-button {
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-muted, #b5bac1);
+    cursor: pointer;
+}
+
+.vc-voiceChannelPanel-icon-button:hover {
+    color: var(--text-normal, #ffffff);
+}
+
 .vc-voiceChannelPanel-members {
     display: flex;
     flex-direction: column;

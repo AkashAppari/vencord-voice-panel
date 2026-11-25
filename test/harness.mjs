@@ -66,6 +66,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const { act } = await import("react");
 const common = await import(path.join(STUBS, "common.js"));
+const settingsModule = await import(path.join(STUBS, "settings.js"));
 const plugin = (await import(OUT)).default;
 
 const results = [];
@@ -97,6 +98,7 @@ check("plugin declares no patches", plugin.patches === undefined, String(plugin.
 // ---- not connected to voice: nothing renders
 common.state.myChannelId = undefined;
 await act(async () => { plugin.start(); });
+check("no pop-out button while not in a voice channel", document.querySelector('[aria-label="Pop out voice panel"]') === null, html().slice(0, 160));
 check("renders nothing while not in a voice channel", panelEl() === null && text().trim() === "", html().slice(0, 160));
 await act(async () => { plugin.stop(); });
 check("stop() removes its container", document.body.children.length === 0, String(document.body.children.length));
@@ -221,9 +223,81 @@ common.state.rtcParticipants = [];
 await act(async () => { plugin.stop(); });
 await act(async () => { plugin.start(); });
 
+// ---- pop-out window
+const popoutButton = () => document.querySelector('[aria-label="Pop out voice panel"]');
+const { POPOUT_CSS } = await import(OUT);
+const opens = () => common.popout.calls.filter(c => c.fn === "open");
+
+check("pop-out button renders while in a voice channel", !!popoutButton() && popoutButton().title === "Pop out voice panel", html().slice(0, 300));
+check("pop-out button carries an icon", !!popoutButton()?.querySelector("svg"), popoutButton()?.outerHTML ?? "no button");
+
+// a leave so the popout has a log line to show
+common.state.voiceStates = { me: voiceState("me", "chan1", undefined), alice: voiceState("alice", "chan1", undefined) };
+await act(async () => {
+    common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "bob", channelId: null, oldChannelId: "chan1" }] });
+});
+
+const popoutWindow = new JSDOM("<!doctype html><html><head></head><body></body></html>").window;
+await act(async () => { popoutButton().click(); });
+const firstOpen = opens()[0];
+check("clicking pop-out calls PopoutActions.open with the popout key", opens().length === 1 && firstOpen.key === "VOICE_CHANNEL_PANEL", JSON.stringify(common.popout.calls.map(c => c.key)));
+check("defaults open a transparent, always-on-top, frameless window",
+    firstOpen?.features.transparent === true && firstOpen?.features.alwaysOnTop === true && firstOpen?.features.frame === false && firstOpen?.features.backgroundColor === "#00000000",
+    JSON.stringify(firstOpen?.features));
+
+// the window appears: the stylesheet is injected into its document
+common.popout.open = true;
+common.popout.window = popoutWindow;
+await act(async () => { await new Promise(r => setTimeout(r, 250)); });
+const injected = [...popoutWindow.document.head.querySelectorAll("style")].map(s => s.textContent);
+check("popout CSS is injected into the popout document", injected.length === 1 && injected[0] === POPOUT_CSS && POPOUT_CSS.includes("vc-voiceChannelPanel-popout"), JSON.stringify(injected.length));
+check("popout document is transparent with no body margin",
+    popoutWindow.document.body.style.margin === "0px" && popoutWindow.document.body.style.background === "transparent" && popoutWindow.document.documentElement.style.background === "transparent",
+    popoutWindow.document.body.getAttribute("style"));
+
+await act(async () => { popoutButton().click(); });
+check("clicking pop-out while the window is open does not open a second", opens().length === 1, String(opens().length));
+
+// what the popout window renders
+const popoutHost = document.createElement("div");
+document.body.appendChild(popoutHost);
+const popoutRoot = common.createRoot(popoutHost);
+await act(async () => { popoutRoot.render(firstOpen.render("VOICE_CHANNEL_PANEL")); });
+const popoutText = popoutHost.textContent;
+check("popout renders inside the popout root", !!popoutHost.querySelector(":scope > .vc-voiceChannelPanel-popout"), popoutHost.innerHTML.slice(0, 200));
+check("popout lists the members", popoutText.includes("Alice (nick)") && popoutText.includes("Akash") && popoutText.includes("Game Night"), popoutText);
+check("popout shows the join/leave log", /bobby left - \d{2}:\d{2}/.test(popoutText), popoutText);
+
+const pin = popoutHost.querySelector('[aria-label="Keep on top"]');
+await act(async () => { pin.click(); });
+const pinCall = common.popout.calls.at(-1);
+check("pin toggles always-on-top off", pinCall.fn === "setAlwaysOnTop" && pinCall.key === "VOICE_CHANNEL_PANEL" && pinCall.value === false, JSON.stringify(pinCall));
+await act(async () => { pin.click(); });
+check("pin toggles always-on-top back on", common.popout.calls.at(-1).value === true, JSON.stringify(common.popout.calls.at(-1)));
+
+await act(async () => { popoutHost.querySelector('[aria-label="Close voice panel window"]').click(); });
+check("close button closes the popout", common.popout.calls.at(-1).fn === "close" && !common.popout.open, JSON.stringify(common.popout.calls.at(-1)));
+await act(async () => { popoutRoot.unmount(); });
+popoutHost.remove();
+
+// opaque window when transparency is off; a window that never appears only warns
+settingsModule.store.popoutTransparent = false;
+common.popout.window = null;
+const warnings = [];
+const realWarn = console.warn;
+console.warn = (...a) => warnings.push(a.join(" "));
+await act(async () => { popoutButton().click(); });
+const opaqueOpen = opens().at(-1);
+check("with popoutTransparent off, open() gets an opaque window",
+    opens().length === 2 && opaqueOpen.features.transparent === false && opaqueOpen.features.backgroundColor === "#1e1f22",
+    JSON.stringify(opaqueOpen?.features));
+await act(async () => { await new Promise(r => setTimeout(r, 3300)); });
+console.warn = realWarn;
+check("a popout that never opens only warns", warnings.includes("[VoiceChannelPanel] popout window did not open"), JSON.stringify(warnings));
+settingsModule.store.popoutTransparent = true;
+
 // ---- dragging writes settings and stays on screen
 const header = document.querySelector(".vc-voiceChannelPanel-header");
-const settingsModule = await import(path.join(STUBS, "settings.js"));
 const startLeft = settingsModule.store.offsetLeft;
 await act(async () => {
     header.dispatchEvent(new window.MouseEvent("mousedown", { clientX: 100, clientY: 100, bubbles: true }));
