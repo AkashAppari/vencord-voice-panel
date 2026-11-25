@@ -13,6 +13,9 @@ card while a track is playing, otherwise above the account panel itself — laid
 any other panel. Only with neither to attach to does it become a floating panel you can drag
 anywhere, with the position saved in its settings.
 
+Built for the case where you sit in a call with friends but keep another server open: someone
+quietly drops out and you would otherwise have to switch servers to find out who.
+
 ### Pop-out window
 
 The panel header has a pop-out button that opens the panel as its own window, separate from
@@ -24,9 +27,6 @@ when you leave the channel.
 Transparent and frameless are window flags applied when the window is created, so changing those two
 settings needs the window reopened; always-on-top can be changed while it is open. It needs the
 desktop app — popout windows do not exist in a browser.
-
-Built for the case where you sit in a call with friends but keep another server open: someone
-quietly drops out and you would otherwise have to switch servers to find out who.
 
 ## What it shows
 
@@ -167,13 +167,14 @@ away, and returns to floating only if the column itself is torn down.
 ## Tests
 
 `test/` renders the plugin in Node with the Vencord modules stubbed, against a real DOM, and drives
-real voice-state events through it. Its 39 checks cover the member list, nickname fallback, the
+real voice-state events through it. Its 58 checks cover the member list, nickname fallback, the
 mute/deafen/camera icons (including that badges carry no letter text), leave/join log text and ordering, your own transitions being ignored, dragging and its
 clamping, the speaking ring and quiet state, the RTC participant list being preferred while stream
 participants are not listed as members, docking when the sidebar column appears after startup,
 moving above the music card once one exists, staying docked when that card goes away, dragging being
-inert while docked, falling back to floating when the column is gone, and the panel disappearing
-when you disconnect.
+inert while docked, falling back to floating when the column is gone, the panel disappearing
+when you disconnect, and the pop-out window opening with the right window flags, injecting its
+stylesheet, toggling always-on-top, and closing when you disconnect.
 
 ```bash
 cd test
