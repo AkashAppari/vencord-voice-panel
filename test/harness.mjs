@@ -272,11 +272,28 @@ const pin = popoutHost.querySelector('[aria-label="Keep on top"]');
 await act(async () => { pin.click(); });
 const pinCall = common.popout.calls.at(-1);
 check("pin toggles always-on-top off", pinCall.fn === "setAlwaysOnTop" && pinCall.key === "VOICE_CHANNEL_PANEL" && pinCall.value === false, JSON.stringify(pinCall));
+check("unpinning writes popoutAlwaysOnTop off", settingsModule.store.popoutAlwaysOnTop === false, String(settingsModule.store.popoutAlwaysOnTop));
 await act(async () => { pin.click(); });
 check("pin toggles always-on-top back on", common.popout.calls.at(-1).value === true, JSON.stringify(common.popout.calls.at(-1)));
+check("re-pinning writes popoutAlwaysOnTop back on", settingsModule.store.popoutAlwaysOnTop === true, String(settingsModule.store.popoutAlwaysOnTop));
 
 await act(async () => { popoutHost.querySelector('[aria-label="Close voice panel window"]').click(); });
 check("close button closes the popout", common.popout.calls.at(-1).fn === "close" && !common.popout.open, JSON.stringify(common.popout.calls.at(-1)));
+
+// leaving voice with the popout open closes it
+common.popout.open = true;
+const closesBefore = common.popout.calls.filter(c => c.fn === "close").length;
+common.state.myChannelId = undefined;
+await act(async () => {
+    common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "me", channelId: null, oldChannelId: "chan1" }] });
+});
+check("disconnecting from voice closes the popout",
+    common.popout.calls.filter(c => c.fn === "close").length === closesBefore + 1 && !common.popout.open,
+    JSON.stringify(common.popout.calls.slice(-3)));
+common.state.myChannelId = "chan1";
+await act(async () => {
+    common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "me", channelId: "chan1", oldChannelId: null }] });
+});
 await act(async () => { popoutRoot.unmount(); });
 popoutHost.remove();
 

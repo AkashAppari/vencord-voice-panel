@@ -88,7 +88,9 @@ function PopOutIcon({ size }: { size: number; }) {
 function PinIcon({ size }: { size: number; }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M15 3.5 20.5 9l-1.8 1.8-1-1-3.4 3.4.6 4.1-1.6 1.6-3.4-3.4-4.6 4.6-1.4-1.4 4.6-4.6-3.4-3.4 1.6-1.6 4.1.6 3.4-3.4-1-1z" />
+            <rect x="6.6" y="3" width="10.8" height="4.4" rx="1.6" />
+            <rect x="10" y="7.4" width="4" height="4" />
+            <path d="M11.2 11.4h1.6v9.4h-1.6z" />
         </svg>
     );
 }
@@ -522,8 +524,25 @@ function PopoutPanel() {
     const togglePin = () => {
         const next = !onTop;
         PopoutActions.setAlwaysOnTop(POPOUT_KEY, next);
+        settings.store.popoutAlwaysOnTop = next;
         setOnTop(next);
     };
+
+    // Discord may apply the alwaysOnTop flag just after the first read, so check once more.
+    useEffect(() => {
+        const timer = setTimeout(() => setOnTop(PopoutWindowStore.getIsAlwaysOnTop(POPOUT_KEY)), 400);
+        return () => clearTimeout(timer);
+    }, []);
+
+    // Leaving or disconnecting from voice closes the window rather than leaving an empty list.
+    useEffect(() => {
+        if (channelId) return;
+        try {
+            PopoutActions.close(POPOUT_KEY);
+        } catch (err) {
+            logger.error("Could not close the popout window", err);
+        }
+    }, [channelId]);
 
     const channel = channelId ? ChannelStore.getChannel(channelId) : undefined;
 
