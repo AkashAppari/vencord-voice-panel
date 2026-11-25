@@ -13,6 +13,18 @@ card while a track is playing, otherwise above the account panel itself — laid
 any other panel. Only with neither to attach to does it become a floating panel you can drag
 anywhere, with the position saved in its settings.
 
+### Pop-out window
+
+The panel header has a pop-out button that opens the panel as its own window, separate from
+Discord, so it can sit over other applications. That window is frameless, transparent and always on
+top by default, and keeps a live member list plus the same join/leave log. Drag it by its title row,
+use the pin to toggle always-on-top while it is open, and the X to close it; it closes by itself
+when you leave the channel.
+
+Transparent and frameless are window flags applied when the window is created, so changing those two
+settings needs the window reopened; always-on-top can be changed while it is open. It needs the
+desktop app — popout windows do not exist in a browser.
+
 Built for the case where you sit in a call with friends but keep another server open: someone
 quietly drops out and you would otherwise have to switch servers to find out who.
 
@@ -107,6 +119,9 @@ pnpm build
 | `logSize` | `8` | How many join and leave entries to keep |
 | `showJoins` | `true` | Log when someone joins as well as leaves |
 | `showLog` | `true` | Show the log under the member list |
+| `popoutAlwaysOnTop` | `true` | Keep the pop-out window above other windows |
+| `popoutTransparent` | `true` | Give the pop-out window a transparent background |
+| `popoutFrameless` | `true` | Open the pop-out window without a window frame |
 
 ## Where it sits
 
