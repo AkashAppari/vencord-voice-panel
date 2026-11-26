@@ -51,18 +51,12 @@ const POPOUT_KEY = "VOICE_CHANNEL_PANEL";
 const POPOUT_POLL_MS = 100;
 const POPOUT_WAIT_MS = 3000;
 
-/*
- * Vencord re-exports Discord's own icons in `@components/Icons`, but that set carries no headphone
- * and no camera glyph - only `Microphone` and `ScreenshareIcon`. These two are drawn here in the
- * same 24x24 filled style so all four badges sit at the same weight, rather than adding a dependency
- * for two shapes. Proportions were checked at the rendered size rather than by eye on the numbers.
- */
+// Icon geometry from Material Symbols (Apache-2.0, google/material-design-icons),
+// except the microphone and screen-share glyphs which come from Discord's own set.
 function HeadphonesIcon({ size }: { size: number; }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M5.2 15V11.2a6.8 6.8 0 0 1 13.6 0V15h-2.6v-3.8a4.2 4.2 0 0 0-8.4 0V15z" />
-            <rect x="2.6" y="13.2" width="4.2" height="7" rx="2.1" />
-            <rect x="17.2" y="13.2" width="4.2" height="7" rx="2.1" />
+            <path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z" />
         </svg>
     );
 }
@@ -70,8 +64,7 @@ function HeadphonesIcon({ size }: { size: number; }) {
 function VideoIcon({ size }: { size: number; }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <rect x="2" y="6.5" width="13.8" height="11" rx="2.8" />
-            <path d="M15.8 10.4 21.2 7.6v8.8l-5.4-2.8z" />
+            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
         </svg>
     );
 }
@@ -79,8 +72,7 @@ function VideoIcon({ size }: { size: number; }) {
 function PopOutIcon({ size }: { size: number; }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M14 3h7v7h-2.4V7.1l-7.2 7.2-1.7-1.7 7.2-7.2H14z" />
-            <path d="M5 5.5h6V8H6.5v9.5H16V13h2.5v6a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V7A1.5 1.5 0 0 1 5 5.5z" />
+            <path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
         </svg>
     );
 }
@@ -88,9 +80,7 @@ function PopOutIcon({ size }: { size: number; }) {
 function PinIcon({ size }: { size: number; }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <rect x="6.6" y="3" width="10.8" height="4.4" rx="1.6" />
-            <rect x="10" y="7.4" width="4" height="4" />
-            <path d="M11.2 11.4h1.6v9.4h-1.6z" />
+            <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
         </svg>
     );
 }
@@ -98,7 +88,7 @@ function PinIcon({ size }: { size: number; }) {
 function CloseIcon({ size }: { size: number; }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M6.4 4.6 12 10.2l5.6-5.6 1.8 1.8-5.6 5.6 5.6 5.6-1.8 1.8-5.6-5.6-5.6 5.6-1.8-1.8 5.6-5.6-5.6-5.6z" />
+            <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
         </svg>
     );
 }

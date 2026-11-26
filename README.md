@@ -188,3 +188,5 @@ that Discord's live stores match these stubs.
 ## Licence
 
 GPL-3.0-or-later, matching Vencord. Not affiliated with or endorsed by Discord Inc.
+
+Status icons use Material Symbols (Apache-2.0) for headphones, camera, pop-out, pin and close; the microphone and screen-share glyphs are Discord's own.
