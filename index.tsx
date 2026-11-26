@@ -45,8 +45,6 @@ const FLOATING_Z_INDEX = 1002;
 const DRAG_MIN_VISIBLE_X = 80;
 const DRAG_MIN_VISIBLE_Y = 60;
 
-const OVERLAY_THROTTLE_MS = 400;
-
 // Icon geometry from Material Symbols (Apache-2.0, google/material-design-icons),
 // except the microphone and screen-share glyphs which come from Discord's own set.
 function HeadphonesIcon({ size }: { size: number; }) {
@@ -127,16 +125,6 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Show the join and leave log below the member list",
         default: true
-    },
-    overlaySnapshot: {
-        type: OptionType.BOOLEAN,
-        description: "Write the panel state to settings for the desktop overlay to read",
-        default: false
-    },
-    // The JSON the desktop overlay reads. CUSTOM so it is persisted but never shown in the settings UI.
-    overlay: {
-        type: OptionType.CUSTOM,
-        default: ""
     }
 });
 
@@ -378,39 +366,11 @@ function PanelBody({ rows, log, showLog }: { rows: MemberRow[]; log: LogEntry[];
     );
 }
 
-const EMPTY_OVERLAY = { channel: null, count: 0, members: [], log: [] };
-let lastOverlay = ""; // the snapshot body last written, without its timestamp; "" = nothing written yet
-let lastOverlayAt = 0;
-let overlayTimer: ReturnType<typeof setTimeout> | undefined;
-
-/** Throttled and deduplicated: at most one write per OVERLAY_THROTTLE_MS, none for an unchanged state. */
-function writeOverlay(data: object, force = false) {
-    clearTimeout(overlayTimer);
-    overlayTimer = undefined;
-
-    const body = JSON.stringify(data);
-    if (body === lastOverlay) return;
-
-    const wait = lastOverlayAt + OVERLAY_THROTTLE_MS - Date.now();
-    if (wait > 0 && !force) {
-        overlayTimer = setTimeout(() => writeOverlay(data), wait);
-        return;
-    }
-
-    try {
-        settings.store.overlay = JSON.stringify({ t: Date.now(), ...data });
-        lastOverlay = body;
-        lastOverlayAt = Date.now();
-    } catch (err) {
-        logger.error("Could not write the overlay snapshot", err);
-    }
-}
-
 function Panel() {
     const { channelId, rows } = useVoiceRows();
 
-    const { offsetLeft, offsetBottom, width, showLog, overlaySnapshot } = settings.use([
-        "offsetLeft", "offsetBottom", "width", "showLog", "overlaySnapshot"
+    const { offsetLeft, offsetBottom, width, showLog } = settings.use([
+        "offsetLeft", "offsetBottom", "width", "showLog"
     ]);
 
     const inVoice = !!channelId;
@@ -530,19 +490,6 @@ function Panel() {
         dragCleanup.current?.();
     }, []);
 
-    useEffect(() => {
-        // Off and never written: leave the settings file alone. Switched off after writing: clear it.
-        if (!overlaySnapshot && !lastOverlay) return;
-        if (!overlaySnapshot || !channelId) return writeOverlay(EMPTY_OVERLAY);
-
-        writeOverlay({
-            channel: ChannelStore.getChannel(channelId)?.name ?? "Voice",
-            count: rows.length,
-            members: rows.map(r => ({ name: r.name, mute: r.mute, deaf: r.deaf, screen: r.stream, cam: r.video, speaking: r.speaking })),
-            log: log.filter(e => e.channelId === channelId).map(e => ({ text: e.text, kind: e.kind }))
-        });
-    }, [overlaySnapshot, channelId, rows, log]);
-
     const onHeaderMouseDown = (e: DragStartEvent) => {
         // A docked panel is laid out by the sidebar column, so there is nothing to drag.
         if (docked) return;
@@ -637,10 +584,6 @@ export default definePlugin({
     },
 
     stop() {
-        if (lastOverlay) writeOverlay(EMPTY_OVERLAY, true);
-        clearTimeout(overlayTimer);
-        lastOverlay = "";
-        lastOverlayAt = 0;
         sharedLog = [];
         root?.unmount();
         root = null;

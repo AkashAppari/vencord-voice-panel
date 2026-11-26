@@ -223,63 +223,6 @@ common.state.rtcParticipants = [];
 await act(async () => { plugin.stop(); });
 await act(async () => { plugin.start(); });
 
-// ---- desktop overlay snapshot
-const overlayWrites = [];
-let overlayValue = settingsModule.store.overlay;
-Object.defineProperty(settingsModule.store, "overlay", {
-    get: () => overlayValue,
-    set: v => { overlayValue = v; overlayWrites.push(v); },
-    configurable: true
-});
-const lastSnapshot = () => JSON.parse(overlayWrites.at(-1) ?? "null");
-const waitThrottle = () => act(async () => { await new Promise(r => setTimeout(r, 450)); });
-
-check("overlay snapshot is off by default and has written nothing", settingsModule.store.overlaySnapshot === false && overlayValue === "", JSON.stringify(overlayValue));
-
-settingsModule.store.overlaySnapshot = true;
-common.state.voiceStates = {
-    me: voiceState("me", "chan1", undefined),
-    alice: { ...voiceState("alice", "chan1", undefined), selfDeaf: true, selfVideo: true }
-};
-await act(async () => {
-    common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "bob", channelId: null, oldChannelId: "chan1" }] });
-});
-const snap = lastSnapshot();
-check("enabling overlaySnapshot writes a snapshot with keys in order",
-    overlayWrites.length === 1 && JSON.stringify(Object.keys(snap ?? {})) === '["t","channel","count","members","log"]' && typeof snap.t === "number",
-    JSON.stringify(overlayWrites));
-check("the snapshot carries the channel, count and members",
-    snap?.channel === "Game Night" && snap.count === 2 &&
-    JSON.stringify(snap.members.find(m => m.name === "Alice (nick)")) === '{"name":"Alice (nick)","mute":false,"deaf":true,"screen":false,"cam":true,"speaking":false}' &&
-    snap.members.some(m => m.name === "Akash"),
-    JSON.stringify(snap));
-check("the snapshot carries the log", snap?.log.length === 1 && snap.log[0].kind === "leave" && /^bobby left - \d{2}:\d{2}$/.test(snap.log[0].text), JSON.stringify(snap?.log));
-
-await act(async () => {
-    common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "alice", channelId: "chan1", oldChannelId: "chan1" }] });
-});
-await waitThrottle();
-check("an identical state is not written twice", overlayWrites.length === 1, String(overlayWrites.length));
-
-common.state.myChannelId = undefined;
-await act(async () => {
-    common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "me", channelId: null, oldChannelId: "chan1" }] });
-});
-await waitThrottle();
-check("disconnecting writes a null channel with no members or log",
-    lastSnapshot()?.channel === null && lastSnapshot().members.length === 0 && lastSnapshot().log.length === 0 && overlayWrites.length === 2,
-    JSON.stringify(overlayWrites.slice(1)));
-
-common.state.myChannelId = "chan1";
-await act(async () => {
-    common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "me", channelId: "chan1", oldChannelId: null }] });
-});
-await waitThrottle();
-await act(async () => { plugin.stop(); });
-check("stop() writes a null channel", lastSnapshot()?.channel === null && overlayWrites.length === 4, JSON.stringify(overlayWrites.slice(2)));
-settingsModule.store.overlaySnapshot = false;
-await act(async () => { plugin.start(); });
-
 // ---- dragging writes settings and stays on screen
 const header = document.querySelector(".vc-voiceChannelPanel-header");
 const startLeft = settingsModule.store.offsetLeft;
