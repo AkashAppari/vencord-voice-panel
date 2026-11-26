@@ -205,6 +205,12 @@
     border-top: 1px solid var(--border-subtle, #3f4147);
 }
 
+/* Kept in the DOM while empty so the live region exists before the first announcement. */
+.vc-voiceChannelPanel-log:empty {
+    padding-top: 0;
+    border-top: 0;
+}
+
 .vc-voiceChannelPanel-log-entry {
     font-size: 11px;
     color: var(--text-muted, #b5bac1);

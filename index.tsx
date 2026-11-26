@@ -410,7 +410,7 @@ function PanelBody({ rows, log, showLog }: { rows: MemberRow[]; log: LogEntry[];
                     </div>
                 ))}
             </div>
-            {showLog && log.length > 0 && (
+            {showLog && (
                 <div className={cl("log")} role="log" aria-live="polite" aria-relevant="additions" aria-label="Join and leave activity">
                     {log.map(entry => (
                         <div key={entry.id} className={cl("log-entry", entry.kind)}>{entry.text}</div>
@@ -449,6 +449,7 @@ export const POPOUT_CSS = `
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-badge-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; color: inherit; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-badge-slashed::after { content: ""; position: absolute; left: 50%; top: 50%; width: 2px; height: 132%; border-radius: 1px; background: currentcolor; box-shadow: 0 0 0 1.6px #1e1f22; transform: translate(-50%, -50%) rotate(-45deg); }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log { display: flex; flex-direction: column; gap: 2px; flex: 0 1 auto; max-height: 35%; overflow-y: auto; padding-top: 4px; border-top: 1px solid #3f4147; }
+.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log:empty { padding-top: 0; border-top: 0; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log-entry { font-size: 11px; color: #b5bac1; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-leave { color: #ff8a8a; }
 @media (prefers-reduced-motion: reduce) { .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button, .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row { transition: none; } }

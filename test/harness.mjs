@@ -124,7 +124,8 @@ check("header shows the member count", text().includes("3"), text());
 check("nickname is preferred over globalName and username", rowNames().includes("Alice (nick)"), JSON.stringify(rowNames()));
 check("falls back to username with no nick or globalName", rowNames().includes("bobby"), JSON.stringify(rowNames()));
 check("my own row carries the me class", html().includes("vc-voiceChannelPanel-me"), "no me class");
-check("no log section while the log is empty", !html().includes("vc-voiceChannelPanel-log"), html().slice(-300));
+const emptyLog = document.querySelector(".vc-voiceChannelPanel-log");
+check("empty log container is already present as a live log", emptyLog?.getAttribute("role") === "log" && logLines().length === 0, emptyLog?.outerHTML ?? html().slice(-300));
 
 // ---- someone leaves
 common.state.voiceStates = {
