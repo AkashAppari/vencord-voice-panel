@@ -167,7 +167,7 @@ away, and returns to floating only if the column itself is torn down.
 ## Tests
 
 `test/` renders the plugin in Node with the Vencord modules stubbed, against a real DOM, and drives
-real voice-state events through it. Its 58 checks cover the member list, nickname fallback, the
+real voice-state events through it. Its 61 checks cover the member list, nickname fallback, the
 mute/deafen/camera icons (including that badges carry no letter text), leave/join log text and ordering, your own transitions being ignored, dragging and its
 clamping, the speaking ring and quiet state, the RTC participant list being preferred while stream
 participants are not listed as members, docking when the sidebar column appears after startup,
