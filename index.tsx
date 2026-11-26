@@ -411,7 +411,7 @@ function PanelBody({ rows, log, showLog }: { rows: MemberRow[]; log: LogEntry[];
                 ))}
             </div>
             {showLog && log.length > 0 && (
-                <div className={cl("log")}>
+                <div className={cl("log")} role="log" aria-live="polite" aria-relevant="additions" aria-label="Join and leave activity">
                     {log.map(entry => (
                         <div key={entry.id} className={cl("log-entry", entry.kind)}>{entry.text}</div>
                     ))}
@@ -431,10 +431,12 @@ export const POPOUT_CSS = `
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-header { display: flex; align-items: center; gap: 4px; padding: 2px 4px; color: #b5bac1; font-weight: 600; user-select: none; -webkit-app-region: drag; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-count { flex: 0 0 auto; color: #b5bac1; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button { display: inline-flex; padding: 0; border: 0; background: none; color: #b5bac1; cursor: pointer; -webkit-app-region: no-drag; }
+.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button { display: inline-flex; padding: 4px; margin: -4px; border: 0; border-radius: 4px; background: none; color: #b5bac1; cursor: pointer; -webkit-app-region: no-drag; transition: color 120ms ease, background-color 120ms ease; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button:hover, .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button[aria-pressed="true"] { color: #fff; }
+.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button:hover { background-color: #383a40; }
+.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button:focus-visible { outline: 2px solid #00a8fc; outline-offset: 1px; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-members { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 4px; }
+.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 4px; transition: background-color 120ms ease; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row:hover { background: rgb(255 255 255 / 6%); }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-me { font-weight: 600; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-avatar { width: 20px; height: 20px; border-radius: 50%; flex: 0 0 auto; background: #3f4147; }
@@ -449,6 +451,7 @@ export const POPOUT_CSS = `
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log { display: flex; flex-direction: column; gap: 2px; flex: 0 1 auto; max-height: 35%; overflow-y: auto; padding-top: 4px; border-top: 1px solid #3f4147; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log-entry { font-size: 11px; color: #b5bac1; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-leave { color: #ff8a8a; }
+@media (prefers-reduced-motion: reduce) { .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button, .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row { transition: none; } }
 `;
 
 let popoutPoll: ReturnType<typeof setInterval> | undefined;
@@ -520,6 +523,7 @@ function PopoutPanel() {
     const log = useLog();
     const { showLog } = settings.use(["showLog"]);
     const [onTop, setOnTop] = useState(() => PopoutWindowStore.getIsAlwaysOnTop(POPOUT_KEY));
+    const rootRef = useRef<HTMLDivElement>(null);
 
     const togglePin = () => {
         const next = !onTop;
@@ -544,10 +548,28 @@ function PopoutPanel() {
         }
     }, [channelId]);
 
+    // Escape closes the window, unless the key is meant for a text field. Listen on the popout's own
+    // document, which is not the global one.
+    useEffect(() => {
+        const doc = rootRef.current?.ownerDocument;
+        if (!doc) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (event.key !== "Escape" || target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+            try {
+                PopoutActions.close(POPOUT_KEY);
+            } catch (err) {
+                logger.error("Could not close the popout window", err);
+            }
+        };
+        doc.addEventListener("keydown", onKeyDown);
+        return () => doc.removeEventListener("keydown", onKeyDown);
+    }, []);
+
     const channel = channelId ? ChannelStore.getChannel(channelId) : undefined;
 
     return (
-        <div className={cl("popout")}>
+        <div className={cl("popout")} ref={rootRef}>
             <div className={cl("header")}>
                 <span className={cl("title")}>{channel?.name ?? "Voice"}</span>
                 <span className={cl("count")}>{rows.length}</span>

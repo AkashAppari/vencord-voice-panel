@@ -267,6 +267,11 @@ const popoutText = popoutHost.textContent;
 check("popout renders inside the popout root", !!popoutHost.querySelector(":scope > .vc-voiceChannelPanel-popout"), popoutHost.innerHTML.slice(0, 200));
 check("popout lists the members", popoutText.includes("Alice (nick)") && popoutText.includes("Akash") && popoutText.includes("Game Night"), popoutText);
 check("popout shows the join/leave log", /bobby left - \d{2}:\d{2}/.test(popoutText), popoutText);
+const popoutLog = popoutHost.querySelector(".vc-voiceChannelPanel-log");
+check("the log container is a polite live log", popoutLog?.getAttribute("role") === "log" && popoutLog?.getAttribute("aria-live") === "polite", popoutLog?.outerHTML.slice(0, 200) ?? "no log");
+check("icon buttons are present with their aria-labels",
+    !!popoutButton() && !!popoutHost.querySelector('button[aria-label="Keep on top"]') && !!popoutHost.querySelector('button[aria-label="Close voice panel window"]'),
+    popoutHost.innerHTML.slice(0, 300));
 
 const pin = popoutHost.querySelector('[aria-label="Keep on top"]');
 await act(async () => { pin.click(); });
@@ -279,6 +284,10 @@ check("re-pinning writes popoutAlwaysOnTop back on", settingsModule.store.popout
 
 await act(async () => { popoutHost.querySelector('[aria-label="Close voice panel window"]').click(); });
 check("close button closes the popout", common.popout.calls.at(-1).fn === "close" && !common.popout.open, JSON.stringify(common.popout.calls.at(-1)));
+
+common.popout.open = true;
+await act(async () => { document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
+check("Escape closes the popout", common.popout.calls.at(-1).fn === "close" && !common.popout.open, JSON.stringify(common.popout.calls.at(-1)));
 
 // leaving voice with the popout open closes it
 common.popout.open = true;
