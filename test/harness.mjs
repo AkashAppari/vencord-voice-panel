@@ -98,7 +98,6 @@ check("plugin declares no patches", plugin.patches === undefined, String(plugin.
 // ---- not connected to voice: nothing renders
 common.state.myChannelId = undefined;
 await act(async () => { plugin.start(); });
-check("no pop-out button while not in a voice channel", document.querySelector('[aria-label="Pop out voice panel"]') === null, html().slice(0, 160));
 check("renders nothing while not in a voice channel", panelEl() === null && text().trim() === "", html().slice(0, 160));
 await act(async () => { plugin.stop(); });
 check("stop() removes its container", document.body.children.length === 0, String(document.body.children.length));
@@ -224,104 +223,62 @@ common.state.rtcParticipants = [];
 await act(async () => { plugin.stop(); });
 await act(async () => { plugin.start(); });
 
-// ---- pop-out window
-const popoutButton = () => document.querySelector('[aria-label="Pop out voice panel"]');
-const { POPOUT_CSS } = await import(OUT);
-const opens = () => common.popout.calls.filter(c => c.fn === "open");
+// ---- desktop overlay snapshot
+const overlayWrites = [];
+let overlayValue = settingsModule.store.overlay;
+Object.defineProperty(settingsModule.store, "overlay", {
+    get: () => overlayValue,
+    set: v => { overlayValue = v; overlayWrites.push(v); },
+    configurable: true
+});
+const lastSnapshot = () => JSON.parse(overlayWrites.at(-1) ?? "null");
+const waitThrottle = () => act(async () => { await new Promise(r => setTimeout(r, 450)); });
 
-check("pop-out button renders while in a voice channel", !!popoutButton() && popoutButton().title === "Pop out voice panel", html().slice(0, 300));
-check("pop-out button carries an icon", !!popoutButton()?.querySelector("svg"), popoutButton()?.outerHTML ?? "no button");
+check("overlay snapshot is off by default and has written nothing", settingsModule.store.overlaySnapshot === false && overlayValue === "", JSON.stringify(overlayValue));
 
-// a leave so the popout has a log line to show
-common.state.voiceStates = { me: voiceState("me", "chan1", undefined), alice: voiceState("alice", "chan1", undefined) };
+settingsModule.store.overlaySnapshot = true;
+common.state.voiceStates = {
+    me: voiceState("me", "chan1", undefined),
+    alice: { ...voiceState("alice", "chan1", undefined), selfDeaf: true, selfVideo: true }
+};
 await act(async () => {
     common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "bob", channelId: null, oldChannelId: "chan1" }] });
 });
+const snap = lastSnapshot();
+check("enabling overlaySnapshot writes a snapshot with keys in order",
+    overlayWrites.length === 1 && JSON.stringify(Object.keys(snap ?? {})) === '["t","channel","count","members","log"]' && typeof snap.t === "number",
+    JSON.stringify(overlayWrites));
+check("the snapshot carries the channel, count and members",
+    snap?.channel === "Game Night" && snap.count === 2 &&
+    JSON.stringify(snap.members.find(m => m.name === "Alice (nick)")) === '{"name":"Alice (nick)","mute":false,"deaf":true,"screen":false,"cam":true,"speaking":false}' &&
+    snap.members.some(m => m.name === "Akash"),
+    JSON.stringify(snap));
+check("the snapshot carries the log", snap?.log.length === 1 && snap.log[0].kind === "leave" && /^bobby left - \d{2}:\d{2}$/.test(snap.log[0].text), JSON.stringify(snap?.log));
 
-const popoutWindow = new JSDOM("<!doctype html><html><head></head><body></body></html>").window;
-await act(async () => { popoutButton().click(); });
-const firstOpen = opens()[0];
-check("clicking pop-out calls PopoutActions.open with the popout key", opens().length === 1 && firstOpen.key === "VOICE_CHANNEL_PANEL", JSON.stringify(common.popout.calls.map(c => c.key)));
-check("defaults open a transparent, always-on-top, frameless window",
-    firstOpen?.features.transparent === true && firstOpen?.features.alwaysOnTop === true && firstOpen?.features.frame === false && firstOpen?.features.backgroundColor === "#00000000",
-    JSON.stringify(firstOpen?.features));
+await act(async () => {
+    common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "alice", channelId: "chan1", oldChannelId: "chan1" }] });
+});
+await waitThrottle();
+check("an identical state is not written twice", overlayWrites.length === 1, String(overlayWrites.length));
 
-// the window appears: the stylesheet is injected into its document
-common.popout.open = true;
-common.popout.window = popoutWindow;
-await act(async () => { await new Promise(r => setTimeout(r, 250)); });
-const injected = [...popoutWindow.document.head.querySelectorAll("style")].map(s => s.textContent);
-check("popout CSS is injected into the popout document", injected.length === 1 && injected[0] === POPOUT_CSS && POPOUT_CSS.includes("vc-voiceChannelPanel-popout"), JSON.stringify(injected.length));
-check("popout document is transparent with no body margin",
-    popoutWindow.document.body.style.margin === "0px" && popoutWindow.document.body.style.background === "transparent" && popoutWindow.document.documentElement.style.background === "transparent",
-    popoutWindow.document.body.getAttribute("style"));
-
-await act(async () => { popoutButton().click(); });
-check("clicking pop-out while the window is open does not open a second", opens().length === 1, String(opens().length));
-
-// what the popout window renders
-const popoutHost = document.createElement("div");
-document.body.appendChild(popoutHost);
-const popoutRoot = common.createRoot(popoutHost);
-await act(async () => { popoutRoot.render(firstOpen.render("VOICE_CHANNEL_PANEL")); });
-const popoutText = popoutHost.textContent;
-check("popout renders inside the popout root", !!popoutHost.querySelector(":scope > .vc-voiceChannelPanel-popout"), popoutHost.innerHTML.slice(0, 200));
-check("popout lists the members", popoutText.includes("Alice (nick)") && popoutText.includes("Akash") && popoutText.includes("Game Night"), popoutText);
-check("popout shows the join/leave log", /bobby left - \d{2}:\d{2}/.test(popoutText), popoutText);
-const popoutLog = popoutHost.querySelector(".vc-voiceChannelPanel-log");
-check("the log container is a polite live log", popoutLog?.getAttribute("role") === "log" && popoutLog?.getAttribute("aria-live") === "polite", popoutLog?.outerHTML.slice(0, 200) ?? "no log");
-check("icon buttons are present with their aria-labels",
-    !!popoutButton() && !!popoutHost.querySelector('button[aria-label="Keep on top"]') && !!popoutHost.querySelector('button[aria-label="Close voice panel window"]'),
-    popoutHost.innerHTML.slice(0, 300));
-
-const pin = popoutHost.querySelector('[aria-label="Keep on top"]');
-await act(async () => { pin.click(); });
-const pinCall = common.popout.calls.at(-1);
-check("pin toggles always-on-top off", pinCall.fn === "setAlwaysOnTop" && pinCall.key === "VOICE_CHANNEL_PANEL" && pinCall.value === false, JSON.stringify(pinCall));
-check("unpinning writes popoutAlwaysOnTop off", settingsModule.store.popoutAlwaysOnTop === false, String(settingsModule.store.popoutAlwaysOnTop));
-await act(async () => { pin.click(); });
-check("pin toggles always-on-top back on", common.popout.calls.at(-1).value === true, JSON.stringify(common.popout.calls.at(-1)));
-check("re-pinning writes popoutAlwaysOnTop back on", settingsModule.store.popoutAlwaysOnTop === true, String(settingsModule.store.popoutAlwaysOnTop));
-
-await act(async () => { popoutHost.querySelector('[aria-label="Close voice panel window"]').click(); });
-check("close button closes the popout", common.popout.calls.at(-1).fn === "close" && !common.popout.open, JSON.stringify(common.popout.calls.at(-1)));
-
-common.popout.open = true;
-await act(async () => { document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
-check("Escape closes the popout", common.popout.calls.at(-1).fn === "close" && !common.popout.open, JSON.stringify(common.popout.calls.at(-1)));
-
-// leaving voice with the popout open closes it
-common.popout.open = true;
-const closesBefore = common.popout.calls.filter(c => c.fn === "close").length;
 common.state.myChannelId = undefined;
 await act(async () => {
     common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "me", channelId: null, oldChannelId: "chan1" }] });
 });
-check("disconnecting from voice closes the popout",
-    common.popout.calls.filter(c => c.fn === "close").length === closesBefore + 1 && !common.popout.open,
-    JSON.stringify(common.popout.calls.slice(-3)));
+await waitThrottle();
+check("disconnecting writes a null channel with no members or log",
+    lastSnapshot()?.channel === null && lastSnapshot().members.length === 0 && lastSnapshot().log.length === 0 && overlayWrites.length === 2,
+    JSON.stringify(overlayWrites.slice(1)));
+
 common.state.myChannelId = "chan1";
 await act(async () => {
     common.FluxDispatcher.dispatch("VOICE_STATE_UPDATES", { voiceStates: [{ userId: "me", channelId: "chan1", oldChannelId: null }] });
 });
-await act(async () => { popoutRoot.unmount(); });
-popoutHost.remove();
-
-// opaque window when transparency is off; a window that never appears only warns
-settingsModule.store.popoutTransparent = false;
-common.popout.window = null;
-const warnings = [];
-const realWarn = console.warn;
-console.warn = (...a) => warnings.push(a.join(" "));
-await act(async () => { popoutButton().click(); });
-const opaqueOpen = opens().at(-1);
-check("with popoutTransparent off, open() gets an opaque window",
-    opens().length === 2 && opaqueOpen.features.transparent === false && opaqueOpen.features.backgroundColor === "#1e1f22",
-    JSON.stringify(opaqueOpen?.features));
-await act(async () => { await new Promise(r => setTimeout(r, 3300)); });
-console.warn = realWarn;
-check("a popout that never opens only warns", warnings.includes("[VoiceChannelPanel] popout window did not open"), JSON.stringify(warnings));
-settingsModule.store.popoutTransparent = true;
+await waitThrottle();
+await act(async () => { plugin.stop(); });
+check("stop() writes a null channel", lastSnapshot()?.channel === null && overlayWrites.length === 4, JSON.stringify(overlayWrites.slice(2)));
+settingsModule.store.overlaySnapshot = false;
+await act(async () => { plugin.start(); });
 
 // ---- dragging writes settings and stays on screen
 const header = document.querySelector(".vc-voiceChannelPanel-header");

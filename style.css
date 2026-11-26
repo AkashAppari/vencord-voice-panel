@@ -71,31 +71,6 @@
     flex: 0 0 auto;
 }
 
-/* The pop-out button: a bare glyph in the header's muted colour, like the badges. */
-.vc-voiceChannelPanel-icon-button {
-    display: inline-flex;
-    padding: 4px;
-
-    /* Cancels the padding, so the larger hit target leaves the header's height and right edge alone. */
-    margin: -4px;
-    border: 0;
-    border-radius: 4px;
-    background: none;
-    color: var(--text-muted, #b5bac1);
-    cursor: pointer;
-    transition: color 120ms ease, background-color 120ms ease;
-}
-
-.vc-voiceChannelPanel-icon-button:hover {
-    color: var(--text-normal, #fff);
-    background-color: var(--background-modifier-hover, #383a40);
-}
-
-.vc-voiceChannelPanel-icon-button:focus-visible {
-    outline: 2px solid var(--focus-primary, #00a8fc);
-    outline-offset: 1px;
-}
-
 .vc-voiceChannelPanel-members {
     display: flex;
     flex-direction: column;
@@ -221,7 +196,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .vc-voiceChannelPanel-icon-button,
     .vc-voiceChannelPanel-row {
         transition: none;
     }

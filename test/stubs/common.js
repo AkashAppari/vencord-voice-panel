@@ -56,23 +56,6 @@ export const GuildMemberStore = {
     addChangeListener() {}, removeChangeListener() {}
 };
 
-// Records every call so the harness can assert on them. `window` is what getWindow hands back while
-// the harness has the popout marked open; leave it null to simulate a window that never appears.
-export const popout = { calls: [], open: false, alwaysOnTop: true, window: null };
-
-export const PopoutActions = {
-    open(key, render, features) { popout.calls.push({ fn: "open", key, render, features }); },
-    close(key) { popout.calls.push({ fn: "close", key }); popout.open = false; },
-    setAlwaysOnTop(key, value) { popout.calls.push({ fn: "setAlwaysOnTop", key, value }); popout.alwaysOnTop = value; }
-};
-
-export const PopoutWindowStore = {
-    getWindow: () => (popout.open ? popout.window ?? undefined : undefined),
-    getWindowOpen: () => popout.open,
-    getIsAlwaysOnTop: () => popout.alwaysOnTop,
-    addChangeListener() {}, removeChangeListener() {}
-};
-
 export const useState = React.useState;
 export const useEffect = React.useEffect;
 export const useRef = React.useRef;

@@ -18,8 +18,6 @@ import {
     createRoot,
     FluxDispatcher,
     GuildMemberStore,
-    PopoutActions,
-    PopoutWindowStore,
     SelectedChannelStore,
     useEffect,
     useRef,
@@ -47,9 +45,7 @@ const FLOATING_Z_INDEX = 1002;
 const DRAG_MIN_VISIBLE_X = 80;
 const DRAG_MIN_VISIBLE_Y = 60;
 
-const POPOUT_KEY = "VOICE_CHANNEL_PANEL";
-const POPOUT_POLL_MS = 100;
-const POPOUT_WAIT_MS = 3000;
+const OVERLAY_THROTTLE_MS = 400;
 
 // Icon geometry from Material Symbols (Apache-2.0, google/material-design-icons),
 // except the microphone and screen-share glyphs which come from Discord's own set.
@@ -65,30 +61,6 @@ function VideoIcon({ size }: { size: number; }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-        </svg>
-    );
-}
-
-function PopOutIcon({ size }: { size: number; }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z" />
-        </svg>
-    );
-}
-
-function PinIcon({ size }: { size: number; }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M16 9V4h1c.55 0 1-.45 1-1s-.45-1-1-1H7c-.55 0-1 .45-1 1s.45 1 1 1h1v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
-        </svg>
-    );
-}
-
-function CloseIcon({ size }: { size: number; }) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
         </svg>
     );
 }
@@ -156,20 +128,15 @@ const settings = definePluginSettings({
         description: "Show the join and leave log below the member list",
         default: true
     },
-    popoutAlwaysOnTop: {
+    overlaySnapshot: {
         type: OptionType.BOOLEAN,
-        description: "Keep the popped-out panel above other windows (the pin button toggles it while open)",
-        default: true
+        description: "Write the panel state to settings for the desktop overlay to read",
+        default: false
     },
-    popoutTransparent: {
-        type: OptionType.BOOLEAN,
-        description: "Give the popped-out panel a transparent window background. Applied when the window is opened, so reopen it to change this",
-        default: true
-    },
-    popoutFrameless: {
-        type: OptionType.BOOLEAN,
-        description: "Open the popped-out panel without a window frame. Applied when the window is opened, so reopen it to change this",
-        default: true
+    // The JSON the desktop overlay reads. CUSTOM so it is persisted but never shown in the settings UI.
+    overlay: {
+        type: OptionType.CUSTOM,
+        default: ""
     }
 });
 
@@ -330,8 +297,8 @@ function nameForLog(userId: string, channelId: string, fallback: string) {
 }
 
 /*
- * The join/leave log lives at module level rather than in Panel's state, so the popout window shows
- * the same entries. Panel (always mounted while the plugin runs) is still the only writer.
+ * The join/leave log lives at module level rather than in Panel's state, so stop() can clear it.
+ * Panel (always mounted while the plugin runs) is the only writer.
  */
 let sharedLog: LogEntry[] = [];
 const logListeners = new Set<(log: LogEntry[]) => void>();
@@ -372,7 +339,7 @@ function useVoiceRows() {
     return { channelId, rows };
 }
 
-/** The member rows and the join/leave log, shared by the docked/floating panel and the popout. */
+/** The member rows and the join/leave log, rendered by the docked/floating panel. */
 function PanelBody({ rows, log, showLog }: { rows: MemberRow[]; log: LogEntry[]; showLog: boolean; }) {
     return (
         <>
@@ -411,189 +378,39 @@ function PanelBody({ rows, log, showLog }: { rows: MemberRow[]; log: LogEntry[];
     );
 }
 
-/*
- * The popout window gets a fresh document that style.css never reaches, so its whole look lives
- * here and is injected by openPopout(). Literal colours: Discord's theme variables are not defined
- * in that document. Everything is scoped under the popout root so it cannot leak.
- */
-export const POPOUT_CSS = `
-.vc-voiceChannelPanel-popout { box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; height: 100vh; padding: 8px 12px; overflow: hidden; font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; color: #fff; background: #1e1f22; border-radius: 10px; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-header { display: flex; align-items: center; gap: 4px; padding: 2px 4px; color: #b5bac1; font-weight: 600; user-select: none; -webkit-app-region: drag; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-count { flex: 0 0 auto; color: #b5bac1; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button { display: inline-flex; padding: 4px; margin: -4px; border: 0; border-radius: 4px; background: none; color: #b5bac1; cursor: pointer; -webkit-app-region: no-drag; transition: color 120ms ease, background-color 120ms ease; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button:hover, .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button[aria-pressed="true"] { color: #fff; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button:hover { background-color: #383a40; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button:focus-visible { outline: 2px solid #00a8fc; outline-offset: 1px; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-members { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 4px; transition: background-color 120ms ease; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row:hover { background: rgb(255 255 255 / 6%); }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-me { font-weight: 600; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-avatar { width: 20px; height: 20px; border-radius: 50%; flex: 0 0 auto; background: #3f4147; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-avatar { box-shadow: 0 0 0 2px #23a55a; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-avatar { opacity: 0.55; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-name { font-weight: 600; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-name { color: #b5bac1; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-badges { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; color: #b5bac1; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-badge-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; color: inherit; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-badge-slashed::after { content: ""; position: absolute; left: 50%; top: 50%; width: 2px; height: 132%; border-radius: 1px; background: currentcolor; box-shadow: 0 0 0 1.6px #1e1f22; transform: translate(-50%, -50%) rotate(-45deg); }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log { display: flex; flex-direction: column; gap: 2px; flex: 0 1 auto; max-height: 35%; overflow-y: auto; padding-top: 4px; border-top: 1px solid #3f4147; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log:empty { padding-top: 0; border-top: 0; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log-entry { font-size: 11px; color: #b5bac1; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-leave { color: #ff8a8a; }
-@media (prefers-reduced-motion: reduce) { .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button, .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row { transition: none; } }
-`;
+const EMPTY_OVERLAY = { channel: null, count: 0, members: [], log: [] };
+let lastOverlay = ""; // the snapshot body last written, without its timestamp; "" = nothing written yet
+let lastOverlayAt = 0;
+let overlayTimer: ReturnType<typeof setTimeout> | undefined;
 
-let popoutPoll: ReturnType<typeof setInterval> | undefined;
+/** Throttled and deduplicated: at most one write per OVERLAY_THROTTLE_MS, none for an unchanged state. */
+function writeOverlay(data: object, force = false) {
+    clearTimeout(overlayTimer);
+    overlayTimer = undefined;
 
-function stopPopoutPoll() {
-    clearInterval(popoutPoll);
-    popoutPoll = undefined;
-}
+    const body = JSON.stringify(data);
+    if (body === lastOverlay) return;
 
-function injectPopoutStyles(doc: Document) {
-    const style = doc.createElement("style");
-    style.textContent = POPOUT_CSS;
-    doc.head.appendChild(style);
-    doc.body.style.margin = "0";
-
-    if (settings.store.popoutTransparent) {
-        doc.documentElement.style.background = "transparent";
-        doc.body.style.background = "transparent";
-    }
-}
-
-function openPopout() {
-    try {
-        if (PopoutWindowStore.getWindowOpen(POPOUT_KEY)) return;
-
-        PopoutActions.open(POPOUT_KEY, () => <PopoutPanel />, {
-            width: 264, height: 300, defaultWidth: 264, defaultHeight: 300,
-            frame: !settings.store.popoutFrameless,
-            transparent: settings.store.popoutTransparent,
-            alwaysOnTop: settings.store.popoutAlwaysOnTop,
-            defaultAlwaysOnTop: settings.store.popoutAlwaysOnTop,
-            movable: true, resizable: true, skipTaskbar: true,
-            backgroundColor: settings.store.popoutTransparent ? "#00000000" : "#1e1f22"
-        });
-    } catch (err) {
-        logger.error("Could not open the popout window", err);
+    const wait = lastOverlayAt + OVERLAY_THROTTLE_MS - Date.now();
+    if (wait > 0 && !force) {
+        overlayTimer = setTimeout(() => writeOverlay(data), wait);
         return;
     }
 
-    stopPopoutPoll();
-    const startedAt = Date.now();
-    let seenOpen = false;
-
-    popoutPoll = setInterval(() => {
-        try {
-            const isOpen = PopoutWindowStore.getWindowOpen(POPOUT_KEY);
-            if (isOpen) seenOpen = true;
-            else if (seenOpen) return stopPopoutPoll(); // closed again before its document showed up
-
-            const doc = PopoutWindowStore.getWindow(POPOUT_KEY)?.document;
-            if (doc?.head && doc.body) {
-                injectPopoutStyles(doc);
-                return stopPopoutPoll();
-            }
-
-            if (Date.now() - startedAt >= POPOUT_WAIT_MS) {
-                stopPopoutPoll();
-                if (!isOpen) console.warn("[VoiceChannelPanel] popout window did not open");
-            }
-        } catch (err) {
-            stopPopoutPoll();
-            logger.error("Could not style the popout window", err);
-        }
-    }, POPOUT_POLL_MS);
-}
-
-function PopoutPanel() {
-    const { channelId, rows } = useVoiceRows();
-    const log = useLog();
-    const { showLog } = settings.use(["showLog"]);
-    const [onTop, setOnTop] = useState(() => PopoutWindowStore.getIsAlwaysOnTop(POPOUT_KEY));
-    const rootRef = useRef<HTMLDivElement>(null);
-
-    const togglePin = () => {
-        const next = !onTop;
-        PopoutActions.setAlwaysOnTop(POPOUT_KEY, next);
-        settings.store.popoutAlwaysOnTop = next;
-        setOnTop(next);
-    };
-
-    // Discord may apply the alwaysOnTop flag just after the first read, so check once more.
-    useEffect(() => {
-        const timer = setTimeout(() => setOnTop(PopoutWindowStore.getIsAlwaysOnTop(POPOUT_KEY)), 400);
-        return () => clearTimeout(timer);
-    }, []);
-
-    // Leaving or disconnecting from voice closes the window rather than leaving an empty list.
-    useEffect(() => {
-        if (channelId) return;
-        try {
-            PopoutActions.close(POPOUT_KEY);
-        } catch (err) {
-            logger.error("Could not close the popout window", err);
-        }
-    }, [channelId]);
-
-    // Escape closes the window, unless the key is meant for a text field. Listen on the popout's own
-    // document, which is not the global one.
-    useEffect(() => {
-        const doc = rootRef.current?.ownerDocument;
-        if (!doc) return;
-        const onKeyDown = (event: KeyboardEvent) => {
-            const target = event.target as HTMLElement | null;
-            if (event.key !== "Escape" || target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
-            try {
-                PopoutActions.close(POPOUT_KEY);
-            } catch (err) {
-                logger.error("Could not close the popout window", err);
-            }
-        };
-        doc.addEventListener("keydown", onKeyDown);
-        return () => doc.removeEventListener("keydown", onKeyDown);
-    }, []);
-
-    const channel = channelId ? ChannelStore.getChannel(channelId) : undefined;
-
-    return (
-        <div className={cl("popout")} ref={rootRef}>
-            <div className={cl("header")}>
-                <span className={cl("title")}>{channel?.name ?? "Voice"}</span>
-                <span className={cl("count")}>{rows.length}</span>
-                <button
-                    type="button"
-                    className={cl("icon-button")}
-                    aria-label="Keep on top"
-                    title="Keep on top"
-                    aria-pressed={onTop}
-                    onClick={togglePin}
-                >
-                    <PinIcon size={BADGE_ICON_SIZE} />
-                </button>
-                <button
-                    type="button"
-                    className={cl("icon-button")}
-                    aria-label="Close voice panel window"
-                    title="Close voice panel window"
-                    onClick={() => PopoutActions.close(POPOUT_KEY)}
-                >
-                    <CloseIcon size={BADGE_ICON_SIZE} />
-                </button>
-            </div>
-            <PanelBody rows={rows} log={log.filter(entry => entry.channelId === channelId)} showLog={showLog} />
-        </div>
-    );
+    try {
+        settings.store.overlay = JSON.stringify({ t: Date.now(), ...data });
+        lastOverlay = body;
+        lastOverlayAt = Date.now();
+    } catch (err) {
+        logger.error("Could not write the overlay snapshot", err);
+    }
 }
 
 function Panel() {
     const { channelId, rows } = useVoiceRows();
 
-    const { offsetLeft, offsetBottom, width, showLog } = settings.use([
-        "offsetLeft", "offsetBottom", "width", "showLog"
+    const { offsetLeft, offsetBottom, width, showLog, overlaySnapshot } = settings.use([
+        "offsetLeft", "offsetBottom", "width", "showLog", "overlaySnapshot"
     ]);
 
     const inVoice = !!channelId;
@@ -713,6 +530,19 @@ function Panel() {
         dragCleanup.current?.();
     }, []);
 
+    useEffect(() => {
+        // Off and never written: leave the settings file alone. Switched off after writing: clear it.
+        if (!overlaySnapshot && !lastOverlay) return;
+        if (!overlaySnapshot || !channelId) return writeOverlay(EMPTY_OVERLAY);
+
+        writeOverlay({
+            channel: ChannelStore.getChannel(channelId)?.name ?? "Voice",
+            count: rows.length,
+            members: rows.map(r => ({ name: r.name, mute: r.mute, deaf: r.deaf, screen: r.stream, cam: r.video, speaking: r.speaking })),
+            log: log.filter(e => e.channelId === channelId).map(e => ({ text: e.text, kind: e.kind }))
+        });
+    }, [overlaySnapshot, channelId, rows, log]);
+
     const onHeaderMouseDown = (e: DragStartEvent) => {
         // A docked panel is laid out by the sidebar column, so there is nothing to drag.
         if (docked) return;
@@ -779,17 +609,6 @@ function Panel() {
                 <span className={cl("title")}>{channel?.name ?? "Voice"}</span>
                 <span className={cl("actions")}>
                     <span className={cl("count")}>{rows.length}</span>
-                    <button
-                        type="button"
-                        className={cl("icon-button")}
-                        aria-label="Pop out voice panel"
-                        title="Pop out voice panel"
-                        // Keep the click from starting a drag of the floating panel.
-                        onMouseDown={e => e.stopPropagation()}
-                        onClick={openPopout}
-                    >
-                        <PopOutIcon size={BADGE_ICON_SIZE} />
-                    </button>
                 </span>
             </div>
             <PanelBody rows={rows} log={visibleLog} showLog={showLog} />
@@ -818,12 +637,10 @@ export default definePlugin({
     },
 
     stop() {
-        stopPopoutPoll();
-        try {
-            if (PopoutWindowStore.getWindowOpen(POPOUT_KEY)) PopoutActions.close(POPOUT_KEY);
-        } catch (err) {
-            logger.error("Could not close the popout window", err);
-        }
+        if (lastOverlay) writeOverlay(EMPTY_OVERLAY, true);
+        clearTimeout(overlayTimer);
+        lastOverlay = "";
+        lastOverlayAt = 0;
         sharedLog = [];
         root?.unmount();
         root = null;

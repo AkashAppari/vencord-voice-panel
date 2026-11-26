@@ -16,17 +16,14 @@ anywhere, with the position saved in its settings.
 Built for the case where you sit in a call with friends but keep another server open: someone
 quietly drops out and you would otherwise have to switch servers to find out who.
 
-### Pop-out window
+### Desktop overlay
 
-The panel header has a pop-out button that opens the panel as its own window, separate from
-Discord, so it can sit over other applications. That window is frameless, transparent and always on
-top by default, and keeps a live member list plus the same join/leave log. Drag it by its title row,
-use the pin to toggle always-on-top while it is open, and the X to close it; it closes by itself
-when you leave the channel.
-
-Transparent and frameless are window flags applied when the window is created, so changing those two
-settings needs the window reopened; always-on-top can be changed while it is open. It needs the
-desktop app — popout windows do not exist in a browser.
+With the `overlaySnapshot` setting on (it is off by default), the plugin exports the live panel
+state — channel, members with their mute/deafen/stream/camera/speaking flags, and the join/leave
+log — as a compact JSON string into its own settings file, so a separate always-on-top overlay app
+can read it and float the panel over other applications. Writes are throttled and skipped when
+nothing changed, and leaving the channel writes an empty snapshot so the overlay can hide itself.
+The overlay app is not part of this repo yet.
 
 ## What it shows
 
@@ -119,9 +116,7 @@ pnpm build
 | `logSize` | `8` | How many join and leave entries to keep |
 | `showJoins` | `true` | Log when someone joins as well as leaves |
 | `showLog` | `true` | Show the log under the member list |
-| `popoutAlwaysOnTop` | `true` | Keep the pop-out window above other windows |
-| `popoutTransparent` | `true` | Give the pop-out window a transparent background |
-| `popoutFrameless` | `true` | Open the pop-out window without a window frame |
+| `overlaySnapshot` | `false` | Write the panel state to settings for the desktop overlay to read |
 
 ## Where it sits
 
@@ -167,14 +162,14 @@ away, and returns to floating only if the column itself is torn down.
 ## Tests
 
 `test/` renders the plugin in Node with the Vencord modules stubbed, against a real DOM, and drives
-real voice-state events through it. Its 61 checks cover the member list, nickname fallback, the
+real voice-state events through it. Its 46 checks cover the member list, nickname fallback, the
 mute/deafen/camera icons (including that badges carry no letter text), leave/join log text and ordering, your own transitions being ignored, dragging and its
 clamping, the speaking ring and quiet state, the RTC participant list being preferred while stream
 participants are not listed as members, docking when the sidebar column appears after startup,
 moving above the music card once one exists, staying docked when that card goes away, dragging being
 inert while docked, falling back to floating when the column is gone, the panel disappearing
-when you disconnect, and the pop-out window opening with the right window flags, injecting its
-stylesheet, toggling always-on-top, and closing when you disconnect.
+when you disconnect, and the overlay snapshot: its contents, that an unchanged state is not
+written twice, and that disconnecting or stopping writes an empty one.
 
 ```bash
 cd test
@@ -189,4 +184,4 @@ that Discord's live stores match these stubs.
 
 GPL-3.0-or-later, matching Vencord. Not affiliated with or endorsed by Discord Inc.
 
-Status icons use Material Symbols (Apache-2.0) for headphones, camera, pop-out, pin and close; the microphone and screen-share glyphs are Discord's own.
+Status icons use Material Symbols (Apache-2.0) for headphones and camera; the microphone and screen-share glyphs are Discord's own.
