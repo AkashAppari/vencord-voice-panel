@@ -18,12 +18,12 @@ quietly drops out and you would otherwise have to switch servers to find out who
 
 ### Desktop overlay
 
-With the `overlaySnapshot` setting on (it is off by default), the plugin exports the live panel
-state — channel, members with their mute/deafen/stream/camera/speaking flags, and the join/leave
-log — as a compact JSON string into its own settings file, so a separate always-on-top overlay app
-can read it and float the panel over other applications. Writes are throttled and skipped when
-nothing changed, and leaving the channel writes an empty snapshot so the overlay can hide itself.
-The overlay app is not part of this repo yet.
+The [`overlay/`](overlay/) folder holds a small Windows app that floats the member list and
+join/leave log over other applications in a transparent, always-on-top window. It needs the
+plugin's `overlaySnapshot` setting on (it is off by default): the plugin then exports the live panel
+state as compact JSON into its own settings file, throttled and skipped when nothing changed, and
+writes an empty snapshot on leaving the channel so the overlay hides itself. See
+[overlay/README.md](overlay/README.md) for running it.
 
 ## What it shows
 
