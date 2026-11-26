@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import "./style.css";
+
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Microphone, ScreenshareIcon } from "@components/Icons";
@@ -21,13 +23,11 @@ import {
     SelectedChannelStore,
     useEffect,
     useRef,
+    UserStore,
     useState,
     useStateFromStores,
-    UserStore,
     VoiceStateStore
 } from "@webpack/common";
-
-import "./style.css";
 
 const cl = classNameFactory("vc-voiceChannelPanel-");
 const logger = new Logger("VoiceChannelPanel");
@@ -294,7 +294,7 @@ function rowsFromVoiceStates(channelId: string): MemberRow[] {
     return Object.values(VoiceStateStore.getVoiceStatesForChannel(channelId) ?? {})
         .filter(state => !!state?.userId)
         .map(state => {
-            const userId = state.userId;
+            const { userId } = state;
             const user = UserStore.getUser(userId);
 
             return {
@@ -427,25 +427,25 @@ function PanelBody({ rows, log, showLog }: { rows: MemberRow[]; log: LogEntry[];
  * in that document. Everything is scoped under the popout root so it cannot leak.
  */
 export const POPOUT_CSS = `
-.vc-voiceChannelPanel-popout { box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; height: 100vh; padding: 8px 12px; overflow: hidden; font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; color: #ffffff; background: #1e1f22; border-radius: 10px; }
+.vc-voiceChannelPanel-popout { box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; height: 100vh; padding: 8px 12px; overflow: hidden; font-family: "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; color: #fff; background: #1e1f22; border-radius: 10px; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-header { display: flex; align-items: center; gap: 4px; padding: 2px 4px; color: #b5bac1; font-weight: 600; user-select: none; -webkit-app-region: drag; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-count { flex: 0 0 auto; color: #b5bac1; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button { display: inline-flex; padding: 0; border: 0; background: none; color: #b5bac1; cursor: pointer; -webkit-app-region: no-drag; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button:hover, .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button[aria-pressed="true"] { color: #ffffff; }
+.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button:hover, .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-icon-button[aria-pressed="true"] { color: #fff; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-members { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 4px; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row:hover { background: rgba(255, 255, 255, 0.06); }
+.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-row:hover { background: rgb(255 255 255 / 6%); }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-me { font-weight: 600; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-avatar { width: 20px; height: 20px; border-radius: 50%; flex: 0 0 auto; background: #3f4147; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-avatar { box-shadow: 0 0 0 2px #23a55a; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-avatar { opacity: 0.55; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #ffffff; }
+.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-speaking .vc-voiceChannelPanel-name { font-weight: 600; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-quiet .vc-voiceChannelPanel-name { color: #b5bac1; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-badges { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; color: #b5bac1; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-badge-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; color: inherit; }
-.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-badge-slashed::after { content: ""; position: absolute; left: 50%; top: 50%; width: 2px; height: 132%; border-radius: 1px; background: currentColor; box-shadow: 0 0 0 1.6px #1e1f22; transform: translate(-50%, -50%) rotate(-45deg); }
+.vc-voiceChannelPanel-popout .vc-voiceChannelPanel-badge-slashed::after { content: ""; position: absolute; left: 50%; top: 50%; width: 2px; height: 132%; border-radius: 1px; background: currentcolor; box-shadow: 0 0 0 1.6px #1e1f22; transform: translate(-50%, -50%) rotate(-45deg); }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log { display: flex; flex-direction: column; gap: 2px; flex: 0 1 auto; max-height: 35%; overflow-y: auto; padding-top: 4px; border-top: 1px solid #3f4147; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-log-entry { font-size: 11px; color: #b5bac1; }
 .vc-voiceChannelPanel-popout .vc-voiceChannelPanel-leave { color: #ff8a8a; }
@@ -628,7 +628,7 @@ function Panel() {
             }
 
             container.classList.add(MOUNT_DOCKED_CLASS);
-            setDocked(current => current ? current : true);
+            setDocked(current => current || true);
         };
 
         const schedule = () => {
