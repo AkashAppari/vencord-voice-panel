@@ -17,6 +17,10 @@ name: Release
 on:
   push:
     branches: [main]
+    # Only plugin source changes ship a release; a README typo does not.
+    paths:
+      - index.tsx
+      - style.css
   workflow_dispatch:
 
 permissions:
